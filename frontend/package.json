@@ -1,0 +1,24 @@
+{
+  "name": "tienda-electrodomesticos",
+  "version": "1.0.0",
+  "description": "Frontend para tienda de electrodomésticos",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.4",
+    "autoprefixer": "^10.4.0",
+    "axios": "^1.7.0",
+    "lucide-react": "^0.344.0",
+    "next": "^15.0.0",
+    "postcss": "^8.4.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-icons": "^5.7.0",
+    "tailwindcss": "^3.4.0"
+  }
+}
