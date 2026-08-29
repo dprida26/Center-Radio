@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Mail, MapPin } from 'lucide-react'
 import { FaWhatsapp, FaPhone } from 'react-icons/fa'
-import { companyService } from '@/services/api'
+import { companyConfigService } from '@/services/api'
 
 const WHATSAPP_MESSAGE = 'Hola, me gustaría consultar sobre los electrodomésticos'
 
@@ -22,7 +22,7 @@ export default function ContactoPage() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const data = await companyService.getConfig()
+        const data = await companyConfigService.getConfig()
         setConfig(data)
       } catch (error) {
         console.error('Error fetching company config:', error)

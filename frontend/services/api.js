@@ -1,6 +1,22 @@
 import axios from 'axios'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+// Detectar URL de API basada en el entorno
+const getApiUrl = () => {
+  // Si está definido en variables de entorno, usarlo
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL
+  }
+
+  // En navegador, usar localhost:8000
+  if (typeof window !== 'undefined') {
+    return 'http://localhost:8000/api/v1'
+  }
+
+  // En servidor (Next.js), usar el servicio de Docker
+  return 'http://api:8000/api/v1'
+}
+
+const API_URL = getApiUrl()
 
 const api = axios.create({
   baseURL: API_URL,
