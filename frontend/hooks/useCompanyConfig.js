@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { companyService } from '@/services/api'
+import { companyConfigService } from '@/services/api'
 
 export function useCompanyConfig() {
   const [config, setConfig] = useState(null)
@@ -11,7 +11,7 @@ export function useCompanyConfig() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const data = await companyService.getConfig()
+        const data = await companyConfigService.getConfig()
         setConfig(data)
       } catch (err) {
         console.error('Error fetching company config:', err)
