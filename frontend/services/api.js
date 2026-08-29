@@ -2,18 +2,18 @@ import axios from 'axios'
 
 // Detectar URL de API basada en el entorno
 const getApiUrl = () => {
-  // Si está definido en variables de entorno, usarlo
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL
-  }
-
-  // En navegador, usar localhost:8000
+  // En navegador (cliente), siempre usar localhost
   if (typeof window !== 'undefined') {
     return 'http://localhost:8000/api/v1'
   }
 
-  // En servidor (Next.js), usar el servicio de Docker
-  return 'http://api:8000/api/v1'
+  // En servidor (Next.js SSR), usar el servicio de Docker
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL
+  }
+
+  // Fallback
+  return 'http://localhost:8000/api/v1'
 }
 
 const API_URL = getApiUrl()
