@@ -4,22 +4,22 @@ import Link from 'next/link'
 import { Search, ShoppingCart, Menu } from 'lucide-react'
 import { FaWhatsapp, FaFacebook, FaInstagram, FaTwitter, FaYoutube } from 'react-icons/fa'
 import { useState } from 'react'
-import { useCompanyConfig } from '@/hooks/useCompanyConfig'
+import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 
 const WHATSAPP_MESSAGE = 'Hola, me gustaría consultar sobre los electrodomésticos'
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const { config, loading } = useCompanyConfig()
+  const { info, loading } = useCompanyInfo()
 
   const fallbackConfig = {
-    company_name: 'Tienda Electrodomésticos',
+    name: 'Tienda Electrodomésticos',
     phone: '+54 9 1234-5678',
     email: 'info@tienda.com',
-    whatsapp_number: '541234567890',
+    whatsapp: '541234567890',
   }
 
-  const displayConfig = config || fallbackConfig
+  const displayConfig = info || fallbackConfig
 
   return (
     <header className="bg-white shadow sticky top-0 z-50">
@@ -27,24 +27,30 @@ export default function Header() {
       <div className="bg-gray-900 text-white py-3 text-sm">
         <div className="container flex justify-between items-center">
           <div className="hidden md:flex gap-6">
-            <span className="flex items-center gap-2">
-              <span className="text-lg">📞</span> {displayConfig.phone}
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="text-lg">📧</span> {displayConfig.email}
-            </span>
+            {displayConfig.phone && (
+              <span className="flex items-center gap-2">
+                <span className="text-lg">📞</span> {displayConfig.phone}
+              </span>
+            )}
+            {displayConfig.email && (
+              <span className="flex items-center gap-2">
+                <span className="text-lg">📧</span> {displayConfig.email}
+              </span>
+            )}
           </div>
           <div className="flex gap-4 items-center">
-            <a
-              href={`https://wa.me/${displayConfig.whatsapp_number}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 hover:text-green-400 transition hover:scale-110"
-              title="Contactar por WhatsApp"
-            >
-              <FaWhatsapp size={20} />
-              <span className="hidden sm:inline">WhatsApp</span>
-            </a>
+            {displayConfig.whatsapp && (
+              <a
+                href={`https://wa.me/${displayConfig.whatsapp}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 hover:text-green-400 transition hover:scale-110"
+                title="Contactar por WhatsApp"
+              >
+                <FaWhatsapp size={20} />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </a>
+            )}
             <div className="border-l border-gray-600 pl-4 flex gap-4">
               {displayConfig.facebook_url && (
                 <a
@@ -97,7 +103,7 @@ export default function Header() {
 
       <div className="container py-4 flex items-center justify-between">
         <Link href="/" className="text-2xl font-bold text-blue-600">
-          🏪 {displayConfig.company_name}
+          🏪 {displayConfig.name}
         </Link>
 
         <nav className="hidden md:flex gap-6 items-center">

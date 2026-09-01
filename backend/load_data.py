@@ -5,7 +5,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tienda.settings')
 django.setup()
 
 from django.contrib.auth.models import User
-from api.models import Category, Product, Promotion
+from api.models import Category, Product, Promotion, CompanyInfo
 from django.utils import timezone
 from datetime import timedelta
 
@@ -85,4 +85,26 @@ for product in Product.objects.filter(category__name='Refrigeradores'):
     promo2.products.add(product)
 
 print(f"✅ {Promotion.objects.count()} promociones activas")
+
+# Crear información de la empresa
+company, created = CompanyInfo.objects.get_or_create(
+    name='Tienda Electrodomésticos',
+    defaults={
+        'phone': '+54 9 1234-5678',
+        'whatsapp': '+541234567890',
+        'email': 'info@tienda.com',
+        'address': 'Av. Principal 123, Ciudad, País',
+        'facebook_url': 'https://facebook.com/tiendaelectro',
+        'instagram_url': 'https://instagram.com/tiendaelectro',
+        'twitter_url': 'https://twitter.com/tiendaelectro',
+        'youtube_url': 'https://youtube.com/@tiendaelectro',
+        'linkedin_url': 'https://linkedin.com/company/tiendaelectro',
+        'about_text': 'Somos una tienda de electrodomésticos con más de 10 años de experiencia. Ofrecemos los mejores productos con garantía y servicio al cliente de calidad.',
+    }
+)
+if created:
+    print(f"✅ Información de empresa creada")
+else:
+    print(f"ℹ️ Información de empresa ya existe")
+
 print("\n🎉 Datos de ejemplo cargados exitosamente")

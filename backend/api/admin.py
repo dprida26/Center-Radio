@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, Promotion, CompanyConfig
+from .models import Category, Product, Promotion, CompanyConfig, CompanyInfo
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -23,3 +23,19 @@ class PromotionAdmin(admin.ModelAdmin):
 class CompanyConfigAdmin(admin.ModelAdmin):
     list_display = ['name', 'value']
     search_fields = ['name']
+
+@admin.register(CompanyInfo)
+class CompanyInfoAdmin(admin.ModelAdmin):
+    list_display = ['name', 'phone', 'email', 'updated_at']
+    fieldsets = (
+        ('Información General', {
+            'fields': ('name', 'logo', 'about_text')
+        }),
+        ('Contacto', {
+            'fields': ('phone', 'whatsapp', 'email', 'address')
+        }),
+        ('Redes Sociales', {
+            'fields': ('facebook_url', 'instagram_url', 'twitter_url', 'youtube_url', 'linkedin_url'),
+            'classes': ('collapse',)
+        }),
+    )

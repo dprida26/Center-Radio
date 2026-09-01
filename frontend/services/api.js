@@ -115,4 +115,16 @@ export const companyConfigService = {
   },
 }
 
+export const companyInfoService = {
+  getInfo: async () => {
+    try {
+      const { data } = await api.get('/company-info/current/')
+      return data
+    } catch (error) {
+      console.error('Error fetching company info:', error)
+      throw error
+    }
+  },
+}
+
 export default api

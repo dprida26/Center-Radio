@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, Promotion, CompanyConfig
+from .models import Category, Product, Promotion, CompanyConfig, CompanyInfo
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -23,3 +23,12 @@ class CompanyConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = CompanyConfig
         fields = ['id', 'name', 'value']
+
+class CompanyInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompanyInfo
+        fields = [
+            'id', 'name', 'phone', 'whatsapp', 'email', 'address',
+            'facebook_url', 'instagram_url', 'twitter_url', 'youtube_url', 'linkedin_url',
+            'about_text', 'logo', 'updated_at'
+        ]

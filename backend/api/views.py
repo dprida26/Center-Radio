@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.utils import timezone
 from django.db.models import Q
-from .models import Category, Product, Promotion, CompanyConfig
-from .serializers import CategorySerializer, ProductSerializer, PromotionSerializer, CompanyConfigSerializer
+from .models import Category, Product, Promotion, CompanyConfig, CompanyInfo
+from .serializers import CategorySerializer, ProductSerializer, PromotionSerializer, CompanyConfigSerializer, CompanyInfoSerializer
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
@@ -68,3 +68,15 @@ class CompanyConfigViewSet(viewsets.ModelViewSet):
     queryset = CompanyConfig.objects.all()
     serializer_class = CompanyConfigSerializer
     lookup_field = 'name'
+
+class CompanyInfoViewSet(viewsets.ModelViewSet):
+    queryset = CompanyInfo.objects.all()
+    serializer_class = CompanyInfoSerializer
+
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        company = CompanyInfo.objects.first()
+        if company:
+            serializer = self.get_serializer(company)
+            return Response(serializer.data)
+        return Response({'error': 'Company info not found'}, status=404)

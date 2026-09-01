@@ -58,3 +58,27 @@ class CompanyConfig(models.Model):
 
     def __str__(self):
         return f"{self.name}: {self.value}"
+
+class CompanyInfo(models.Model):
+    name = models.CharField(max_length=200, default="Tienda Electrodomésticos")
+    phone = models.CharField(max_length=20, blank=True)
+    whatsapp = models.CharField(max_length=20, blank=True)
+    email = models.EmailField(blank=True)
+    address = models.TextField(blank=True)
+
+    facebook_url = models.URLField(blank=True)
+    instagram_url = models.URLField(blank=True)
+    twitter_url = models.URLField(blank=True)
+    youtube_url = models.URLField(blank=True)
+    linkedin_url = models.URLField(blank=True)
+
+    about_text = models.TextField(blank=True)
+    logo = models.ImageField(upload_to='company/', blank=True, null=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "Company Info"
+
+    def __str__(self):
+        return self.name
