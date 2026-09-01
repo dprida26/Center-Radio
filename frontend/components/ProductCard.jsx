@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { ShoppingCart, Heart, TrendingDown } from 'lucide-react'
 import { useState } from 'react'
+import { InstallmentsCalculator } from './InstallmentsCalculator'
 
 export default function ProductCard({ product }) {
   const [liked, setLiked] = useState(false)
@@ -14,7 +15,16 @@ export default function ProductCard({ product }) {
     }).format(price)
   }
 
-  const hasStock = product.stock_quantity > 0
+  const hasStock = product.stock > 0
+
+  const getInterestPercent = () => {
+    if (!product.promotions || product.promotions.length === 0) return 0
+    return parseFloat(product.promotions[0].interest_percent) || 0
+  }
+
+  const interestPercent = getInterestPercent()
+  const finalPrice = product.price
+  const monthlyPayment = (finalPrice * (1 + interestPercent / 100)) / 3
 
   return (
     <div className="group h-full">
@@ -87,39 +97,29 @@ export default function ProductCard({ product }) {
           </p>
 
           {/* Precio */}
-          <div className="mb-4 flex-grow">
-            <div className="flex items-baseline gap-2 mb-1">
-              <div className="flex items-baseline gap-1">
-                <span className="text-lg font-semibold text-gray-600">Gs.</span>
-                {product.is_on_sale && product.sale_price ? (
-                  <>
-                    <p className="text-sm line-through text-gray-400">
-                      {formatPrice(product.price)}
-                    </p>
-                    <p className="text-3xl font-bold text-red-600">
-                      {formatPrice(product.sale_price)}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-3xl font-bold text-blue-600">
-                    {formatPrice(product.price)}
-                  </p>
-                )}
+          <div className="mb-4 flex-grow space-y-2">
+            <div>
+              <div className="text-lg font-semibold text-gray-900 mb-1">
+                Gs. {formatPrice(finalPrice)} contado
               </div>
-              <span className="text-xs text-gray-500 font-semibold">
-                Contado
-              </span>
             </div>
-            <div className="flex items-center gap-1 text-xs text-green-600 font-semibold">
-              <TrendingDown size={16} />
-              O desde 3 cuotas sin interés
+            <div className="bg-green-50 rounded-lg p-2 border border-green-200">
+              <p className="text-xs text-gray-600 mb-1">O en cuotas:</p>
+              <p className="text-sm font-bold text-green-700">
+                3 cuotas de Gs. {formatPrice(monthlyPayment)}
+              </p>
+              {interestPercent > 0 && (
+                <p className="text-xs text-gray-500 mt-1">
+                  (+{interestPercent.toFixed(1)}% interés)
+                </p>
+              )}
             </div>
           </div>
 
           {/* Stock info */}
           {hasStock && (
             <p className="text-xs text-gray-500 mb-4">
-              📦 {product.stock_quantity} en stock
+              📦 {product.stock} en stock
             </p>
           )}
 

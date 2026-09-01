@@ -62,6 +62,7 @@ promo1, _ = Promotion.objects.get_or_create(
     defaults={
         'description': '20% de descuento en electrodomésticos seleccionados',
         'discount_percent': 20,
+        'interest_percent': 8.5,
         'start_date': now,
         'end_date': now + timedelta(days=30),
         'is_active': True
@@ -73,6 +74,7 @@ promo2, _ = Promotion.objects.get_or_create(
     defaults={
         'description': '15% de descuento en todos los refrigeradores',
         'discount_percent': 15,
+        'interest_percent': 6.0,
         'start_date': now,
         'end_date': now + timedelta(days=15),
         'is_active': True
@@ -83,6 +85,9 @@ promo2, _ = Promotion.objects.get_or_create(
 for product in Product.objects.filter(category__name='Refrigeradores'):
     promo1.products.add(product)
     promo2.products.add(product)
+
+for product in Product.objects.filter(category__name='Televisores'):
+    promo1.products.add(product)
 
 print(f"✅ {Promotion.objects.count()} promociones activas")
 

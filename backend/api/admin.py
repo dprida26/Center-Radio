@@ -15,9 +15,25 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Promotion)
 class PromotionAdmin(admin.ModelAdmin):
-    list_display = ['name', 'discount_percent', 'start_date', 'end_date', 'is_active']
+    list_display = ['name', 'discount_percent', 'interest_percent', 'start_date', 'end_date', 'is_active']
     list_filter = ['is_active', 'start_date', 'end_date']
     search_fields = ['name']
+    filter_horizontal = ['products']
+    fieldsets = (
+        ('Información General', {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        ('Período de Oferta', {
+            'fields': ('start_date', 'end_date')
+        }),
+        ('Descuentos', {
+            'fields': ('discount_percent', 'interest_percent'),
+            'description': 'Configura el descuento y el interés para cuotas'
+        }),
+        ('Productos', {
+            'fields': ('products',)
+        }),
+    )
 
 @admin.register(CompanyConfig)
 class CompanyConfigAdmin(admin.ModelAdmin):

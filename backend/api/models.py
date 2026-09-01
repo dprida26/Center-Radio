@@ -34,12 +34,14 @@ class Product(models.Model):
 class Promotion(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
-    discount_percent = models.DecimalField(max_digits=5, decimal_places=2)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     products = models.ManyToManyField(Product, related_name='promotions', blank=True)
     is_active = models.BooleanField(default=True)
+    interest_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Porcentaje de interés para cuotas")
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ['-created_at']

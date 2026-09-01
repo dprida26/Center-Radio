@@ -9,7 +9,7 @@ class CategorySerializer(serializers.ModelSerializer):
 class PromotionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Promotion
-        fields = ['id', 'name', 'description', 'discount_percent', 'start_date', 'end_date', 'is_active']
+        fields = ['id', 'name', 'description', 'discount_percent', 'interest_percent', 'start_date', 'end_date', 'is_active', 'products']
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
