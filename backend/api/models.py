@@ -19,6 +19,7 @@ class Product(models.Model):
     name = models.CharField(max_length=200, verbose_name='Nombre')
     description = models.TextField(verbose_name='Descripción')
     price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name='Precio')
+    cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Precio de Costo', help_text='Costo de compra al proveedor, usado para calcular el gasto de mercadería al reponer stock')
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products', verbose_name='Categoría')
     image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='Imagen')
     brand = models.CharField(max_length=100, blank=True, verbose_name='Marca')
@@ -60,6 +61,67 @@ class Product(models.Model):
             return self.image.url
         return None
 
+    def add_stock(self, quantity, note=''):
+        from django.utils import timezone
+        if quantity <= 0:
+            raise ValueError('La cantidad a ingresar debe ser mayor a cero.')
+
+        self.stock = models.F('stock') + quantity
+        self.save(update_fields=['stock'])
+        self.refresh_from_db(fields=['stock'])
+
+        expense = None
+        if self.cost_price and self.cost_price > 0:
+            expense = Expense.objects.create(
+                amount=self.cost_price * quantity,
+                category=Expense.CATEGORY_MERCHANDISE,
+                description=(note or f'Ingreso de stock: {quantity} x {self.name}'),
+                expense_date=timezone.now().date(),
+            )
+
+        StockMovement.objects.create(
+            product=self,
+            movement_type=StockMovement.TYPE_IN,
+            quantity=quantity,
+            reason=note or 'Ingreso de mercadería',
+            resulting_stock=self.stock,
+        )
+        return expense
+
+    def register_sale_exit(self, quantity, reason=''):
+        if quantity <= 0:
+            raise ValueError('La cantidad debe ser mayor a cero.')
+
+        self.stock = models.F('stock') - quantity
+        self.save(update_fields=['stock'])
+        self.refresh_from_db(fields=['stock'])
+
+        StockMovement.objects.create(
+            product=self,
+            movement_type=StockMovement.TYPE_OUT,
+            quantity=-quantity,
+            reason=reason or 'Salida por venta',
+            resulting_stock=self.stock,
+        )
+
+    def adjust_stock(self, quantity_delta, reason):
+        if quantity_delta == 0:
+            raise ValueError('El ajuste debe ser distinto de cero.')
+        if not reason:
+            raise ValueError('El motivo del ajuste es obligatorio.')
+
+        self.stock = models.F('stock') + quantity_delta
+        self.save(update_fields=['stock'])
+        self.refresh_from_db(fields=['stock'])
+
+        StockMovement.objects.create(
+            product=self,
+            movement_type=StockMovement.TYPE_ADJUSTMENT,
+            quantity=quantity_delta,
+            reason=reason,
+            resulting_stock=self.stock,
+        )
+
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='images', verbose_name='Producto')
@@ -74,6 +136,32 @@ class ProductImage(models.Model):
 
     def __str__(self):
         return f'Imagen de {self.product.name} (#{self.order})'
+
+
+class StockMovement(models.Model):
+    TYPE_IN = 'IN'
+    TYPE_OUT = 'OUT'
+    TYPE_ADJUSTMENT = 'ADJUSTMENT'
+    TYPE_CHOICES = [
+        (TYPE_IN, 'Entrada'),
+        (TYPE_OUT, 'Salida'),
+        (TYPE_ADJUSTMENT, 'Ajuste'),
+    ]
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_movements', verbose_name='Producto')
+    movement_type = models.CharField(max_length=12, choices=TYPE_CHOICES, verbose_name='Tipo')
+    quantity = models.IntegerField(verbose_name='Cantidad', help_text='Positivo para entradas/ajustes positivos, negativo para salidas/ajustes negativos')
+    reason = models.CharField(max_length=255, blank=True, verbose_name='Motivo')
+    resulting_stock = models.IntegerField(verbose_name='Stock Resultante')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Movimiento de Stock'
+        verbose_name_plural = 'Movimientos de Stock'
+
+    def __str__(self):
+        return f'{self.get_movement_type_display()} {self.quantity} - {self.product.name}'
 
 
 class Promotion(models.Model):
@@ -312,3 +400,67 @@ class Installment(models.Model):
         self.paid_date = None
         self.paid_amount = None
         self.save()
+
+
+class Expense(models.Model):
+    CATEGORY_RENT = 'RENT'
+    CATEGORY_UTILITIES = 'UTILITIES'
+    CATEGORY_SALARIES = 'SALARIES'
+    CATEGORY_MERCHANDISE = 'MERCHANDISE'
+    CATEGORY_MARKETING = 'MARKETING'
+    CATEGORY_OTHER = 'OTHER'
+    CATEGORY_CHOICES = [
+        (CATEGORY_RENT, 'Alquiler'),
+        (CATEGORY_UTILITIES, 'Servicios (luz, agua, internet)'),
+        (CATEGORY_SALARIES, 'Sueldos'),
+        (CATEGORY_MERCHANDISE, 'Mercadería'),
+        (CATEGORY_MARKETING, 'Marketing'),
+        (CATEGORY_OTHER, 'Otros'),
+    ]
+
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default=CATEGORY_OTHER, verbose_name='Categoría')
+    description = models.CharField(max_length=255, blank=True, verbose_name='Descripción')
+    expense_date = models.DateField(verbose_name='Fecha')
+    receipt = models.ImageField(upload_to='expenses/', blank=True, null=True, verbose_name='Comprobante')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
+
+    class Meta:
+        ordering = ['-expense_date', '-created_at']
+        verbose_name = 'Gasto'
+        verbose_name_plural = 'Gastos'
+
+    def __str__(self):
+        return f'{self.get_category_display()} - Gs. {self.amount} ({self.expense_date})'
+
+
+class AuditLog(models.Model):
+    ACTION_CREATE = 'CREATE'
+    ACTION_UPDATE = 'UPDATE'
+    ACTION_DELETE = 'DELETE'
+    ACTION_CUSTOM = 'CUSTOM'
+    ACTION_CHOICES = [
+        (ACTION_CREATE, 'Creación'),
+        (ACTION_UPDATE, 'Edición'),
+        (ACTION_DELETE, 'Eliminación'),
+        (ACTION_CUSTOM, 'Acción'),
+    ]
+
+    user = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs', verbose_name='Usuario')
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES, verbose_name='Acción')
+    model_name = models.CharField(max_length=100, verbose_name='Modelo')
+    object_id = models.CharField(max_length=50, blank=True, verbose_name='ID del Objeto')
+    object_repr = models.CharField(max_length=255, blank=True, verbose_name='Objeto')
+    description = models.CharField(max_length=255, blank=True, verbose_name='Descripción')
+    changes = models.JSONField(null=True, blank=True, verbose_name='Cambios')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Fecha')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Registro de Auditoría'
+        verbose_name_plural = 'Registros de Auditoría'
+
+    def __str__(self):
+        who = self.user.username if self.user else 'Sistema'
+        return f'{who} - {self.get_action_display()} - {self.model_name} ({self.created_at})'

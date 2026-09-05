@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2, Pencil, Printer } from 'lucide-react'
 import Link from 'next/link'
 import { customerService, installmentService } from '@/services/api'
 
@@ -23,6 +23,7 @@ export default function ClienteDetallePage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
   const [confirmTarget, setConfirmTarget] = useState(null)
+  const [editing, setEditing] = useState(false)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -73,7 +74,16 @@ export default function ClienteDetallePage() {
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{customer.full_name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">{customer.full_name}</h1>
+              <button
+                onClick={() => setEditing(true)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                title="Editar datos del cliente"
+              >
+                <Pencil size={16} />
+              </button>
+            </div>
             <p className="text-gray-500 text-sm mt-1">CI/RUC: {customer.document_number}</p>
             <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-600">
               {customer.phone && (
@@ -128,6 +138,133 @@ export default function ClienteDetallePage() {
           onConfirm={handleConfirmPayment}
         />
       )}
+
+      {editing && (
+        <EditCustomerModal
+          customer={customer}
+          onCancel={() => setEditing(false)}
+          onSaved={(updated) => {
+            setCustomer(updated)
+            setEditing(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function EditCustomerModal({ customer, onCancel, onSaved }) {
+  const [form, setForm] = useState({
+    full_name: customer.full_name || '',
+    document_number: customer.document_number || '',
+    phone: customer.phone || '',
+    email: customer.email || '',
+    address: customer.address || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await customerService.update(customer.id, form)
+      onSaved(updated)
+    } catch (err) {
+      setError('No se pudieron guardar los cambios. Verificá los datos.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Editar cliente</h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Nombre completo</label>
+            <input
+              type="text"
+              value={form.full_name}
+              onChange={handleChange('full_name')}
+              required
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">CI/RUC</label>
+            <input
+              type="text"
+              value={form.document_number}
+              onChange={handleChange('document_number')}
+              required
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Teléfono</label>
+            <input
+              type="text"
+              value={form.phone}
+              onChange={handleChange('phone')}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Email</label>
+            <input
+              type="email"
+              value={form.email}
+              onChange={handleChange('email')}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Dirección</label>
+            <input
+              type="text"
+              value={form.address}
+              onChange={handleChange('address')}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={saving}
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            >
+              {saving && <Loader2 size={16} className="animate-spin" />}
+              {saving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -222,15 +359,25 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                   </td>
                   <td className="py-2 text-right">
                     {inst.status === 'PAID' ? (
-                      <button
-                        onClick={() => onRevert(inst.id)}
-                        disabled={isBusy}
-                        className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50 ml-auto"
-                        title="Revertir a pendiente"
-                      >
-                        <RotateCcw size={14} />
-                        {isBusy ? 'Deshaciendo...' : 'Deshacer'}
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link
+                          href={`/panel/cuotas/${inst.id}/comprobante`}
+                          className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                          title="Ver e imprimir comprobante"
+                        >
+                          <Printer size={14} />
+                          Comprobante
+                        </Link>
+                        <button
+                          onClick={() => onRevert(inst.id)}
+                          disabled={isBusy}
+                          className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50"
+                          title="Revertir a pendiente"
+                        >
+                          <RotateCcw size={14} />
+                          {isBusy ? 'Deshaciendo...' : 'Deshacer'}
+                        </button>
+                      </div>
                     ) : (
                       <button
                         onClick={() => onRequestMarkPaid(inst)}

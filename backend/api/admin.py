@@ -1,8 +1,8 @@
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from django.db.models import Sum, F
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem
+from django.db.models import Sum
+from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem, Expense, StockMovement, AuditLog
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -44,7 +44,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('name', 'description', 'category')
         }),
         (_('Detalles del Producto'), {
-            'fields': ('brand', 'model', 'price', 'image'),
+            'fields': ('brand', 'model', 'price', 'cost_price', 'image'),
             'description': 'El campo "Imagen" es el legado de un producto sin galería. Usá la sección de Imágenes más abajo para cargar varias fotos.'
         }),
         (_('Inventario'), {
@@ -214,7 +214,7 @@ class SaleAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         obj.generate_installments()
         if is_new:
-            Product.objects.filter(pk=obj.product_id).update(stock=F('stock') - obj.quantity)
+            obj.product.register_sale_exit(obj.quantity, reason=f'Venta #{obj.id}')
 
 
 class OrderItemInline(admin.TabularInline):
@@ -282,3 +282,47 @@ class InstallmentAdmin(admin.ModelAdmin):
         today = timezone.now().date()
         qs.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(status=Installment.STATUS_OVERDUE)
         return qs
+
+
+@admin.register(StockMovement)
+class StockMovementAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'product', 'movement_type', 'quantity', 'resulting_stock', 'reason']
+    list_filter = ['movement_type']
+    search_fields = ['product__name', 'reason']
+    date_hierarchy = 'created_at'
+    list_per_page = 25
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ['created_at', 'user', 'action', 'model_name', 'object_repr', 'description']
+    list_filter = ['action', 'model_name']
+    search_fields = ['user__username', 'object_repr', 'description']
+    date_hierarchy = 'created_at'
+    list_per_page = 40
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display = ['expense_date', 'category', 'amount_display', 'description']
+    list_filter = ['category']
+    search_fields = ['description']
+    date_hierarchy = 'expense_date'
+    list_per_page = 25
+
+    def amount_display(self, obj):
+        return f'Gs. {obj.amount:,.0f}'.replace(',', '.')
+    amount_display.short_description = 'Monto'
+    amount_display.admin_order_field = 'amount'

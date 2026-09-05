@@ -179,6 +179,21 @@ export const productService = {
   deleteImage: async (productId, imageId) => {
     await api.delete(`/products/${productId}/images/${imageId}/`)
   },
+
+  addStock: async (id, quantity, note = '') => {
+    const { data } = await api.post(`/products/${id}/add_stock/`, { quantity, note })
+    return data
+  },
+
+  adjustStock: async (id, quantityDelta, reason) => {
+    const { data } = await api.post(`/products/${id}/adjust_stock/`, { quantity_delta: quantityDelta, reason })
+    return data
+  },
+
+  getMovements: async (id) => {
+    const { data } = await api.get(`/products/${id}/movimientos/`)
+    return data
+  },
 }
 
 function toProductFormData(payload) {
@@ -313,6 +328,10 @@ export const customerService = {
     const { data } = await api.post('/customers/', payload)
     return data
   },
+  update: async (id, payload) => {
+    const { data } = await api.patch(`/customers/${id}/`, payload)
+    return data
+  },
 }
 
 export const saleService = {
@@ -331,6 +350,10 @@ export const installmentService = {
     const { data } = await api.get('/installments/', { params })
     return data.results || data
   },
+  getById: async (id) => {
+    const { data } = await api.get(`/installments/${id}/`)
+    return data
+  },
   markPaid: async (id, paidAmount) => {
     const { data } = await api.post(`/installments/${id}/mark_paid/`, {
       paid_amount: paidAmount,
@@ -344,6 +367,55 @@ export const installmentService = {
   getDashboard: async () => {
     const { data } = await api.get('/installments/dashboard/')
     return data
+  },
+}
+
+export const auditService = {
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/audit-logs/', { params })
+    return data
+  },
+  getUsers: async () => {
+    const { data } = await api.get('/audit-logs/users/')
+    return data
+  },
+}
+
+export const reportService = {
+  get: async (params = {}) => {
+    const { data } = await api.get('/reports/', { params })
+    return data
+  },
+}
+
+export const expenseService = {
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/expenses/', { params })
+    return data.results || data
+  },
+  create: async (payload) => {
+    const isFile = payload.receipt instanceof File
+    if (isFile) {
+      const formData = new FormData()
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') formData.append(key, value)
+      })
+      const { data } = await api.post('/expenses/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
+    }
+    const { receipt, ...rest } = payload
+    const { data } = await api.post('/expenses/', rest)
+    return data
+  },
+  update: async (id, payload) => {
+    const { receipt, ...rest } = payload
+    const { data } = await api.patch(`/expenses/${id}/`, rest)
+    return data
+  },
+  delete: async (id) => {
+    await api.delete(`/expenses/${id}/`)
   },
 }
 

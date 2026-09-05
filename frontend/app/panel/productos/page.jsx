@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Plus, Pencil, Trash2, X, Loader2, Search, Package, ImagePlus } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Loader2, Search, Package, ImagePlus, PackagePlus, History, ArrowUp, ArrowDown, Settings2 } from 'lucide-react'
 import { productService, categoryService } from '@/services/api'
 
 function formatGs(value) {
@@ -17,6 +17,8 @@ export default function ProductosPage() {
   const [showForm, setShowForm] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting] = useState(false)
+  const [stockTarget, setStockTarget] = useState(null)
+  const [historyTarget, setHistoryTarget] = useState(null)
 
   const load = useCallback(() => {
     setLoading(true)
@@ -135,10 +137,16 @@ export default function ProductosPage() {
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex gap-1 justify-end">
-                      <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors">
+                      <button onClick={() => setHistoryTarget(p)} className="p-1.5 text-gray-400 hover:text-purple-600 transition-colors" title="Historial de stock">
+                        <History size={16} />
+                      </button>
+                      <button onClick={() => setStockTarget(p)} className="p-1.5 text-gray-400 hover:text-green-600 transition-colors" title="Agregar stock">
+                        <PackagePlus size={16} />
+                      </button>
+                      <button onClick={() => openEdit(p)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors" title="Editar">
                         <Pencil size={16} />
                       </button>
-                      <button onClick={() => setDeleteTarget(p)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors">
+                      <button onClick={() => setDeleteTarget(p)} className="p-1.5 text-gray-400 hover:text-red-600 transition-colors" title="Eliminar">
                         <Trash2 size={16} />
                       </button>
                     </div>
@@ -167,6 +175,22 @@ export default function ProductosPage() {
           onConfirm={handleDelete}
         />
       )}
+
+      {stockTarget && (
+        <AddStockModal
+          product={stockTarget}
+          onClose={() => setStockTarget(null)}
+          onSaved={() => { setStockTarget(null); load() }}
+        />
+      )}
+
+      {historyTarget && (
+        <StockHistoryModal
+          product={historyTarget}
+          onClose={() => setHistoryTarget(null)}
+          onAdjusted={() => load()}
+        />
+      )}
     </div>
   )
 }
@@ -176,6 +200,7 @@ function ProductFormModal({ product, categories, onClose, onSaved }) {
   const [name, setName] = useState(product?.name || '')
   const [description, setDescription] = useState(product?.description || '')
   const [price, setPrice] = useState(product?.price || '')
+  const [costPrice, setCostPrice] = useState(product?.cost_price || '')
   const [categoryId, setCategoryId] = useState(product?.category || categories[0]?.id || '')
   const [brand, setBrand] = useState(product?.brand || '')
   const [model, setModel] = useState(product?.model || '')
@@ -218,6 +243,7 @@ function ProductFormModal({ product, categories, onClose, onSaved }) {
       name,
       description,
       price,
+      cost_price: costPrice || 0,
       category: categoryId,
       brand,
       model,
@@ -312,23 +338,44 @@ function ProductFormModal({ product, categories, onClose, onSaved }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Precio (Gs.)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Precio de Venta (Gs.)</label>
               <input
-                type="number"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                type="text"
+                inputMode="numeric"
+                value={price ? Number(price).toLocaleString('es-PY') : ''}
+                onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Stock</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Precio de Costo (Gs.)</label>
               <input
-                type="number"
-                value={stock}
-                onChange={(e) => setStock(e.target.value)}
+                type="text"
+                inputMode="numeric"
+                value={costPrice ? Number(costPrice).toLocaleString('es-PY') : ''}
+                onChange={(e) => setCostPrice(e.target.value.replace(/\D/g, ''))}
+                placeholder="Costo al proveedor"
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Stock {isEdit && <span className="text-gray-400 font-normal">(usá "Agregar stock" en el listado para sumar unidades)</span>}
+            </label>
+            <input
+              type="number"
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              disabled={isEdit}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+            />
+            {!isEdit && costPrice > 0 && stock > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                Se registrará un gasto de mercadería por Gs. {(costPrice * stock).toLocaleString('es-PY')}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -467,6 +514,259 @@ function DeleteConfirmModal({ product, busy, onCancel, onConfirm }) {
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             {busy ? 'Eliminando...' : 'Eliminar'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AddStockModal({ product, onClose, onSaved }) {
+  const [quantity, setQuantity] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const estimatedExpense = product.cost_price > 0 && quantity > 0
+    ? product.cost_price * quantity
+    : 0
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      await productService.addStock(product.id, Number(quantity))
+      onSaved()
+    } catch (err) {
+      const detail = err?.response?.data?.error
+      setError(detail || 'No se pudo agregar el stock.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Agregar stock</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          <strong>{product.name}</strong> — Stock actual: {product.stock}
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Cantidad a ingresar</label>
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              autoFocus
+              required
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {product.cost_price > 0 ? (
+            <p className="text-xs text-gray-500">
+              Costo unitario: Gs. {Number(product.cost_price).toLocaleString('es-PY')}.
+              {estimatedExpense > 0 && (
+                <> Se registrará un gasto de mercadería por <strong>Gs. {estimatedExpense.toLocaleString('es-PY')}</strong>.</>
+              )}
+            </p>
+          ) : (
+            <p className="text-xs text-amber-600">
+              Este producto no tiene precio de costo cargado, por lo que no se generará un gasto automático.
+            </p>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+            >
+              {saving && <Loader2 size={16} className="animate-spin" />}
+              {saving ? 'Guardando...' : 'Agregar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+const MOVEMENT_STYLES = {
+  IN: { icon: ArrowUp, className: 'text-green-600 bg-green-50' },
+  OUT: { icon: ArrowDown, className: 'text-red-600 bg-red-50' },
+  ADJUSTMENT: { icon: Settings2, className: 'text-amber-600 bg-amber-50' },
+}
+
+function StockHistoryModal({ product, onClose, onAdjusted }) {
+  const [movements, setMovements] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showAdjustForm, setShowAdjustForm] = useState(false)
+  const [adjustDelta, setAdjustDelta] = useState('')
+  const [adjustReason, setAdjustReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+  const [currentStock, setCurrentStock] = useState(product.stock)
+
+  const load = () => {
+    setLoading(true)
+    productService.getMovements(product.id).then(setMovements).finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const handleAdjustSubmit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await productService.adjustStock(product.id, Number(adjustDelta), adjustReason)
+      setCurrentStock(updated.stock)
+      setAdjustDelta('')
+      setAdjustReason('')
+      setShowAdjustForm(false)
+      load()
+      onAdjusted()
+    } catch (err) {
+      setError(err?.response?.data?.error || 'No se pudo registrar el ajuste.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4 py-8">
+      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Historial de stock</h3>
+            <p className="text-sm text-gray-500 mt-0.5">{product.name} — Stock actual: <strong>{currentStock}</strong></p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-3 border-b border-gray-100">
+          {!showAdjustForm ? (
+            <button
+              onClick={() => setShowAdjustForm(true)}
+              className="flex items-center gap-1.5 text-sm text-amber-700 hover:text-amber-900 font-semibold"
+            >
+              <Settings2 size={15} />
+              Hacer un ajuste manual
+            </button>
+          ) : (
+            <form onSubmit={handleAdjustSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Cantidad (+/-)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    value={adjustDelta}
+                    onChange={(e) => setAdjustDelta(e.target.value)}
+                    placeholder="Ej: -1 o 2"
+                    required
+                    autoFocus
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo</label>
+                  <input
+                    type="text"
+                    value={adjustReason}
+                    onChange={(e) => setAdjustReason(e.target.value)}
+                    placeholder="Ej: Rotura, recuento"
+                    required
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">{error}</div>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setShowAdjustForm(false); setError(null) }}
+                  disabled={saving}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {saving && <Loader2 size={14} className="animate-spin" />}
+                  {saving ? 'Guardando...' : 'Confirmar ajuste'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-gray-400" />
+            </div>
+          ) : movements.length === 0 ? (
+            <p className="text-gray-400 italic text-sm py-10 text-center">Sin movimientos registrados.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {movements.map((m) => {
+                const style = MOVEMENT_STYLES[m.movement_type] || MOVEMENT_STYLES.ADJUSTMENT
+                const Icon = style.icon
+                return (
+                  <li key={m.id} className="flex items-center gap-3 px-6 py-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${style.className}`}>
+                      <Icon size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 truncate">{m.reason}</p>
+                      <p className="text-xs text-gray-400">{new Date(m.created_at).toLocaleString('es-PY')}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className={`text-sm font-bold ${m.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {m.quantity > 0 ? '+' : ''}{m.quantity}
+                      </p>
+                      <p className="text-xs text-gray-400">saldo: {m.resulting_stock}</p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       </div>
     </div>

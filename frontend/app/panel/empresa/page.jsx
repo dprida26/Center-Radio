@@ -98,7 +98,17 @@ export default function EmpresaPage() {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <Field label="Horario de Atención" value={info.business_hours} onChange={(v) => setField('business_hours', v)} />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Horario de Atención</label>
+            <textarea
+              value={info.business_hours || ''}
+              onChange={(e) => setField('business_hours', e.target.value)}
+              rows={2}
+              placeholder={'Ej: Lunes a Sábado: 07:00 - 18:00\nDomingos: 07:00 - 12:00'}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">Podés usar una línea por franja horaria.</p>
+          </div>
         </Section>
 
         <Section title="Redes Sociales">

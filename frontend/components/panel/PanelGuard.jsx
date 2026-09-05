@@ -32,9 +32,11 @@ export default function PanelGuard({ children }) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      <PanelNav />
+      <div className="print:hidden">
+        <PanelNav />
+      </div>
       <main className="flex-1 min-w-0">
-        <div className="max-w-6xl mx-auto px-6 py-8">{children}</div>
+        <div className="max-w-6xl mx-auto px-6 py-8 print:max-w-none print:p-0">{children}</div>
       </main>
     </div>
   )

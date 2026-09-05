@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Sum, Q, F
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem
+from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem, Expense, StockMovement, AuditLog
 
 class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
@@ -48,7 +48,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'discounted_price', 'category', 'category_name', 'image', 'first_image', 'images', 'brand', 'model', 'stock', 'is_active', 'promotions', 'installment_options', 'installment_options_list', 'installment_interest_rate', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'price', 'cost_price', 'discounted_price', 'category', 'category_name', 'image', 'first_image', 'images', 'brand', 'model', 'stock', 'is_active', 'promotions', 'installment_options', 'installment_options_list', 'installment_interest_rate', 'created_at', 'updated_at']
 
     def get_discounted_price(self, obj):
         return obj.get_discounted_price()
@@ -100,14 +100,17 @@ class CustomerSerializer(serializers.ModelSerializer):
 class InstallmentSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='sale.customer.full_name', read_only=True)
     customer_id = serializers.IntegerField(source='sale.customer.id', read_only=True)
+    customer_document = serializers.CharField(source='sale.customer.document_number', read_only=True)
     product_name = serializers.CharField(source='sale.product.name', read_only=True)
     installment_count = serializers.IntegerField(source='sale.installment_count', read_only=True)
+    sale_date = serializers.DateField(source='sale.sale_date', read_only=True)
 
     class Meta:
         model = Installment
         fields = [
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
-            'customer_name', 'customer_id', 'product_name', 'installment_count',
+            'customer_name', 'customer_id', 'customer_document', 'product_name',
+            'installment_count', 'sale_date',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date']
 
@@ -139,11 +142,49 @@ class SaleSerializer(serializers.ModelSerializer):
             })
         return data
 
-    def create(self, validated_data):
-        sale = super().create(validated_data)
-        sale.generate_installments()
-        Product.objects.filter(pk=sale.product_id).update(stock=F('stock') - sale.quantity)
-        return sale
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True, default=None)
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id', 'user', 'username', 'action', 'action_display', 'model_name',
+            'object_id', 'object_repr', 'description', 'changes', 'created_at',
+        ]
+
+
+class StockMovementSerializer(serializers.ModelSerializer):
+    movement_type_display = serializers.CharField(source='get_movement_type_display', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+
+    class Meta:
+        model = StockMovement
+        fields = [
+            'id', 'product', 'product_name', 'movement_type', 'movement_type_display',
+            'quantity', 'reason', 'resulting_stock', 'created_at',
+        ]
+        read_only_fields = ['id', 'product', 'movement_type', 'quantity', 'resulting_stock', 'created_at']
+
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    receipt_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Expense
+        fields = [
+            'id', 'amount', 'category', 'category_display', 'description',
+            'expense_date', 'receipt', 'receipt_url', 'created_at',
+        ]
+        extra_kwargs = {'receipt': {'write_only': True, 'required': False}}
+
+    def get_receipt_url(self, obj):
+        if obj.receipt:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.receipt.url) if request else obj.receipt.url
+        return None
 
 
 class OrderItemSerializer(serializers.ModelSerializer):

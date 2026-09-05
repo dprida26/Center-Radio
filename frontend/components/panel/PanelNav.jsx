@@ -2,19 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, ShoppingCart, Store, Percent, Package, Tags, Building2, Inbox, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Store, Percent, Package, Tags, Building2, Inbox, LogOut, BarChart3, Receipt, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 
 const links = [
   { href: '/panel', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/panel/reportes', label: 'Reportes', icon: BarChart3 },
   { href: '/panel/pedidos', label: 'Pedidos', icon: Inbox },
+  { href: '/panel/gastos', label: 'Gastos', icon: Receipt },
   { href: '/panel/clientes', label: 'Clientes', icon: Users },
   { href: '/panel/ventas/nueva', label: 'Nueva Venta', icon: ShoppingCart },
   { href: '/panel/productos', label: 'Productos', icon: Package },
   { href: '/panel/categorias', label: 'Categorías', icon: Tags },
   { href: '/panel/promociones', label: 'Promociones', icon: Percent },
   { href: '/panel/empresa', label: 'Info. Empresa', icon: Building2 },
+  { href: '/panel/auditoria', label: 'Auditoría', icon: ShieldCheck },
 ]
 
 export default function PanelNav() {
