@@ -62,8 +62,11 @@ htmlcov/
 # Django
 db.sqlite3
 local_settings.py
-/media/
-/staticfiles/
+media/
+staticfiles/
+
+# Claude Code
+.claude/
 
 # Misc
 .env.production.local
