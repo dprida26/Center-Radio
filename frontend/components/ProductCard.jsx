@@ -1,12 +1,27 @@
 'use client'
 
 import Link from 'next/link'
-import { ShoppingCart, Heart, TrendingDown } from 'lucide-react'
+import { ShoppingCart, Heart, TrendingDown, Check, Zap } from 'lucide-react'
 import { useState } from 'react'
-import { InstallmentsCalculator } from './InstallmentsCalculator'
+import { useRouter } from 'next/navigation'
+import { InstallmentSelector } from './InstallmentSelector'
+import { useCart } from '@/context/CartContext'
 
 export default function ProductCard({ product }) {
   const [liked, setLiked] = useState(false)
+  const [added, setAdded] = useState(false)
+  const { addItem } = useCart()
+  const router = useRouter()
+
+  const handleAddToCart = () => {
+    addItem(product, 1)
+    setAdded(true)
+    setTimeout(() => setAdded(false), 1500)
+  }
+
+  const handleBuyNow = () => {
+    router.push(`/checkout?buyNow=${product.id}&qty=1`)
+  }
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('es-PY', {
@@ -22,13 +37,20 @@ export default function ProductCard({ product }) {
     return parseFloat(product.promotions[0].interest_percent) || 0
   }
 
+  const getDiscountPercent = () => {
+    if (!product.promotions || product.promotions.length === 0) return 0
+    return parseFloat(product.promotions[0].discount_percent) || 0
+  }
+
   const interestPercent = getInterestPercent()
-  const finalPrice = product.price
-  const monthlyPayment = (finalPrice * (1 + interestPercent / 100)) / 3
+  const discountPercent = getDiscountPercent()
+  const originalPrice = product.price
+  const finalPrice = product.discounted_price || product.price
+  const hasDiscount = discountPercent > 0 && product.discounted_price < product.price
 
   return (
     <div className="group h-full">
-      <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 h-full flex flex-col border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 h-full flex flex-col border border-gray-100" style={{ overflow: 'visible' }}>
         {/* Imagen */}
         <div className="relative h-56 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden">
           {product.first_image ? (
@@ -45,7 +67,7 @@ export default function ProductCard({ product }) {
 
           {/* Badge de categoría */}
           <div className="absolute top-3 left-3">
-            <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+            <span className="bg-graphite/85 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full">
               {product.category_name}
             </span>
           </div>
@@ -53,7 +75,7 @@ export default function ProductCard({ product }) {
           {/* Botón favorito */}
           <button
             onClick={() => setLiked(!liked)}
-            className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all duration-300 ${
+            className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-all duration-300 ${
               liked
                 ? 'bg-red-500 text-white scale-110'
                 : 'bg-white/90 text-gray-600 hover:bg-white'
@@ -72,23 +94,24 @@ export default function ProductCard({ product }) {
             </div>
           )}
 
-          {product.is_on_sale && product.discount_percentage > 0 && (
-            <div className="absolute top-14 left-3 bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-              -{product.discount_percentage}%
+          {hasDiscount && (
+            <div className="absolute top-14 left-3 bg-accent text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+              <TrendingDown size={14} />
+              -{discountPercent.toFixed(0)}%
             </div>
           )}
 
-          {hasStock && product.stock_quantity <= 5 && (
-            <div className="absolute bottom-3 right-3 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+          {hasStock && product.stock <= 5 && (
+            <div className="absolute bottom-3 right-3 bg-accent/90 text-white text-xs font-bold px-3 py-1 rounded-full">
               Stock bajo
             </div>
           )}
         </div>
 
         {/* Contenido */}
-        <div className="p-5 flex flex-col flex-grow">
+        <div className="p-5 flex flex-col flex-grow relative z-0">
           {/* Nombre y marca */}
-          <h3 className="font-bold text-gray-900 text-base line-clamp-2 mb-1 group-hover:text-blue-600 transition">
+          <h3 className="font-bold text-gray-900 text-base line-clamp-2 mb-1 group-hover:text-primary-700 transition">
             {product.name}
           </h3>
 
@@ -99,20 +122,26 @@ export default function ProductCard({ product }) {
           {/* Precio */}
           <div className="mb-4 flex-grow space-y-2">
             <div>
-              <div className="text-lg font-semibold text-gray-900 mb-1">
+              {hasDiscount && (
+                <div className="text-sm text-gray-500 line-through mb-1">
+                  Gs. {formatPrice(originalPrice)}
+                </div>
+              )}
+              <div className={`font-semibold mb-1 ${hasDiscount ? 'text-xl text-accent' : 'text-lg text-gray-900'}`}>
                 Gs. {formatPrice(finalPrice)} contado
               </div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-2 border border-green-200">
-              <p className="text-xs text-gray-600 mb-1">O en cuotas:</p>
-              <p className="text-sm font-bold text-green-700">
-                3 cuotas de Gs. {formatPrice(monthlyPayment)}
-              </p>
-              {interestPercent > 0 && (
-                <p className="text-xs text-gray-500 mt-1">
-                  (+{interestPercent.toFixed(1)}% interés)
+              {hasDiscount && (
+                <p className="text-xs text-emerald-600 font-medium">
+                  Ahorras Gs. {formatPrice(originalPrice - finalPrice)}
                 </p>
               )}
+            </div>
+            <div className="overflow-visible">
+              <InstallmentSelector
+                price={finalPrice}
+                interestRate={product.installment_interest_rate || 0}
+                installmentOptions={product.installment_options_list || [3, 6, 12]}
+              />
             </div>
           </div>
 
@@ -124,23 +153,40 @@ export default function ProductCard({ product }) {
           )}
 
           {/* Botones */}
-          <div className="flex gap-2 mt-auto">
-            <Link
-              href={`/productos/${product.id}`}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-xl text-center hover:shadow-lg transition-all font-semibold text-sm"
-            >
-              Ver Detalles
-            </Link>
+          <div className="flex flex-col gap-2 mt-auto">
+            <div className="flex gap-2">
+              <Link
+                href={`/productos/${product.id}`}
+                className="flex-1 bg-primary text-graphite-dark py-3 rounded-xl text-center hover:bg-primary-400 hover:shadow-lg transition-all font-semibold text-sm"
+              >
+                Ver Detalles
+              </Link>
+              <button
+                onClick={handleAddToCart}
+                className={`flex-1 py-3 rounded-xl transition-all font-semibold text-sm flex items-center justify-center gap-2 ${
+                  !hasStock
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
+                    : added
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                disabled={!hasStock}
+              >
+                {added ? <Check size={18} /> : <ShoppingCart size={18} />}
+                <span className="hidden sm:inline">{added ? 'Añadido' : 'Añadir'}</span>
+              </button>
+            </div>
             <button
-              className={`flex-1 py-3 rounded-xl transition-all font-semibold text-sm flex items-center justify-center gap-2 ${
+              onClick={handleBuyNow}
+              disabled={!hasStock}
+              className={`w-full py-2.5 rounded-xl transition-all font-semibold text-sm flex items-center justify-center gap-2 ${
                 hasStock
-                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-accent text-white hover:bg-accent/90'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50'
               }`}
-              disabled={!hasStock}
             >
-              <ShoppingCart size={18} />
-              <span className="hidden sm:inline">Añadir</span>
+              <Zap size={16} className="fill-current" />
+              Comprar Ahora
             </button>
           </div>
         </div>

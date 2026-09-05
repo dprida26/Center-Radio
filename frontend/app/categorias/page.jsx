@@ -2,7 +2,24 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import {
+  ArrowRight, ArrowLeft, Package,
+  Tv, Refrigerator, WashingMachine, Microwave, AirVent, CookingPot,
+} from 'lucide-react'
 import { categoryService } from '@/services/api'
+
+const CATEGORY_ICONS = {
+  Refrigeradores: Refrigerator,
+  Lavadoras: WashingMachine,
+  Televisores: Tv,
+  Microondas: Microwave,
+  Cocinas: CookingPot,
+  'Aires Acondicionados': AirVent,
+}
+
+function getIconForCategory(name) {
+  return CATEGORY_ICONS[name] || Package
+}
 
 export default function CategoriasPage() {
   const [categories, setCategories] = useState([])
@@ -12,7 +29,7 @@ export default function CategoriasPage() {
     const fetchCategories = async () => {
       try {
         const data = await categoryService.getAll()
-        setCategories(data.results || [])
+        setCategories(Array.isArray(data) ? data : [])
       } catch (err) {
         console.error('Error fetching categories:', err)
       } finally {
@@ -23,56 +40,66 @@ export default function CategoriasPage() {
     fetchCategories()
   }, [])
 
-  const categoryIcons = {
-    refrigerator: '❄️',
-    washer: '🧺',
-    stove: '🍳',
-    microwave: '🔥',
-    tv: '📺',
-    air_conditioner: '❄️',
-  }
-
-  if (loading) {
-    return (
-      <div className="container py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="bg-gray-200 animate-pulse h-40 rounded-lg" />
-          ))}
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-gradient-to-br from-graphite-dark via-graphite to-graphite-light text-white">
+        <div className="container py-14">
+          <Link href="/" className="inline-flex items-center text-primary-300 hover:text-primary-200 mb-6 transition text-sm font-medium">
+            <ArrowLeft size={18} className="mr-1.5" />
+            Volver al inicio
+          </Link>
+          <h1 className="text-4xl lg:text-5xl font-bold mb-3">Categorías</h1>
+          <p className="text-slate-300 text-lg max-w-xl">
+            Explorá nuestro catálogo organizado por tipo de electrodoméstico y encontrá justo lo que necesitás.
+          </p>
         </div>
       </div>
-    )
-  }
 
-  return (
-    <div className="container py-12">
-      <h1 className="text-4xl font-bold mb-8">Categorías</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {categories.map((category) => (
-          <Link
-            key={category.id}
-            href={`/productos?category=${category.id}`}
-            className="bg-white rounded-lg shadow-md hover:shadow-lg transition overflow-hidden group cursor-pointer"
-          >
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 h-32 flex items-center justify-center group-hover:scale-105 transition">
-              <span className="text-6xl">
-                {categoryIcons[category.code] || '📦'}
-              </span>
-            </div>
-            <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                {category.name}
-              </h3>
-              <p className="text-gray-600">
-                {category.product_count || 0} productos
-              </p>
-              <div className="mt-4 text-blue-600 font-semibold group-hover:underline">
-                Ver productos →
-              </div>
-            </div>
-          </Link>
-        ))}
+      <div className="container py-12">
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl h-56 animate-pulse border border-gray-100" />
+            ))}
+          </div>
+        ) : categories.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
+            <Package size={40} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500">No hay categorías disponibles por el momento.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {categories.map((category) => {
+              const Icon = getIconForCategory(category.name)
+              return (
+                <Link
+                  key={category.id}
+                  href={`/productos?category=${category.id}`}
+                  className="group bg-white rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 hover:border-primary-100 transition-all duration-300 overflow-hidden"
+                >
+                  <div className="p-7 flex items-start gap-5">
+                    <div className="w-14 h-14 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0 group-hover:bg-primary group-hover:scale-105 transition-all duration-300">
+                      <Icon size={26} className="text-primary-700 group-hover:text-graphite-dark transition-colors" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-bold text-graphite mb-1 truncate">
+                        {category.name}
+                      </h3>
+                      <p className="text-sm text-gray-500 mb-4">
+                        {category.product_count || 0} producto{category.product_count === 1 ? '' : 's'}
+                      </p>
+                      <div className="flex items-center gap-1.5 text-sm text-primary-700 font-semibold">
+                        Ver productos
+                        <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

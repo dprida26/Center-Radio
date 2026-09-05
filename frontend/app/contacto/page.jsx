@@ -1,15 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Mail, MapPin } from 'lucide-react'
 import { FaWhatsapp, FaPhone } from 'react-icons/fa'
-import { companyConfigService } from '@/services/api'
+import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 
 const WHATSAPP_MESSAGE = 'Hola, me gustaría consultar sobre los electrodomésticos'
 
 export default function ContactoPage() {
-  const [config, setConfig] = useState(null)
-  const [configLoading, setConfigLoading] = useState(true)
+  const { info, loading: configLoading } = useCompanyInfo()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -18,24 +17,13 @@ export default function ContactoPage() {
     message: '',
   })
   const [submitted, setSubmitted] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
 
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const data = await companyConfigService.getConfig()
-        setConfig(data)
-      } catch (error) {
-        console.error('Error fetching company config:', error)
-      } finally {
-        setConfigLoading(false)
-      }
-    }
-    fetchConfig()
-  }, [])
-
-  if (configLoading || !config) {
+  if (configLoading) {
     return <div className="container py-12">Cargando configuración...</div>
   }
+
+  const config = info || {}
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -47,12 +35,31 @@ export default function ContactoPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    console.log('Formulario enviado:', formData)
+    setSubmitError(null)
+
+    if (!config.whatsapp) {
+      setSubmitError('No hay un número de WhatsApp configurado para recibir mensajes. Escribinos por teléfono o email.')
+      return
+    }
+
+    const lines = [
+      `Nombre: ${formData.name}`,
+      formData.email ? `Email: ${formData.email}` : null,
+      formData.phone ? `Teléfono: ${formData.phone}` : null,
+      `Asunto: ${formData.subject}`,
+      '',
+      formData.message,
+    ].filter(Boolean)
+
+    window.open(
+      `https://wa.me/${config.whatsapp}?text=${encodeURIComponent(lines.join('\n'))}`,
+      '_blank',
+      'noopener,noreferrer'
+    )
+
     setSubmitted(true)
-    setTimeout(() => {
-      setSubmitted(false)
-      setFormData({ name: '', email: '', phone: '', subject: '', message: '' })
-    }, 3000)
+    setFormData({ name: '', email: '', phone: '', subject: '', message: '' })
+    setTimeout(() => setSubmitted(false), 4000)
   }
 
   return (
@@ -62,33 +69,37 @@ export default function ContactoPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition hover:scale-105">
-          <div className="text-4xl mb-4">📞</div>
+          <div className="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center mb-4">
+            <FaPhone size={20} className="text-primary-700" />
+          </div>
           <h3 className="font-semibold text-lg mb-2">Teléfono</h3>
-          <a href={`tel:${config.phone}`} className="text-blue-600 font-semibold hover:underline">
+          <a href={`tel:${config.phone}`} className="text-primary-700 font-semibold hover:underline">
             {config.phone}
           </a>
-          <p className="text-gray-600 text-sm mt-2">{config.business_hours}</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition hover:scale-105">
-          <div className="text-4xl mb-4">💬</div>
+          <div className="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center mb-4">
+            <FaWhatsapp size={20} className="text-primary-700" />
+          </div>
           <h3 className="font-semibold text-lg mb-2">WhatsApp</h3>
           <a
-            href={`https://wa.me/${config.whatsapp_number}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
+            href={`https://wa.me/${config.whatsapp}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-green-600 font-semibold hover:underline flex items-center gap-2"
+            className="text-primary-700 font-semibold hover:underline flex items-center gap-2"
           >
-            <FaWhatsapp size={20} />
             Chatea con nosotros
           </a>
           <p className="text-gray-600 text-sm mt-2">Respuesta inmediata</p>
         </div>
 
         <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition hover:scale-105">
-          <div className="text-4xl mb-4">📧</div>
+          <div className="w-12 h-12 rounded-lg bg-primary-50 flex items-center justify-center mb-4">
+            <Mail size={20} className="text-primary-700" />
+          </div>
           <h3 className="font-semibold text-lg mb-2">Email</h3>
-          <a href={`mailto:${config.email}`} className="text-orange-600 font-semibold hover:underline">
+          <a href={`mailto:${config.email}`} className="text-primary-700 font-semibold hover:underline">
             {config.email}
           </a>
           <p className="text-gray-600 text-sm mt-2">Respuesta en 24 horas</p>
@@ -102,7 +113,13 @@ export default function ContactoPage() {
 
           {submitted && (
             <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-lg mb-6">
-              ✓ Mensaje enviado correctamente. Te responderemos pronto.
+              ✓ Se abrió WhatsApp con tu mensaje. Enviálo desde ahí para completar tu consulta.
+            </div>
+          )}
+
+          {submitError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+              {submitError}
             </div>
           )}
 
@@ -114,7 +131,7 @@ export default function ContactoPage() {
               value={formData.name}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
               placeholder="Tu nombre"
             />
           </div>
@@ -127,7 +144,7 @@ export default function ContactoPage() {
               value={formData.email}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
               placeholder="tu@email.com"
             />
           </div>
@@ -139,7 +156,7 @@ export default function ContactoPage() {
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
               placeholder="(595) 21 000-0000"
             />
           </div>
@@ -152,7 +169,7 @@ export default function ContactoPage() {
               value={formData.subject}
               onChange={handleChange}
               required
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
               placeholder="Asunto del mensaje"
             />
           </div>
@@ -165,14 +182,14 @@ export default function ContactoPage() {
               onChange={handleChange}
               required
               rows="5"
-              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-600"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:border-primary"
               placeholder="Tu mensaje aquí..."
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
+            className="w-full bg-primary text-graphite-dark py-2 rounded-lg font-semibold hover:bg-primary-400 transition"
           >
             Enviar Mensaje
           </button>
@@ -185,7 +202,7 @@ export default function ContactoPage() {
           <div className="space-y-4">
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-blue-500 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary text-graphite-dark">
                   ✓
                 </div>
               </div>
@@ -199,7 +216,7 @@ export default function ContactoPage() {
 
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-blue-500 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary text-graphite-dark">
                   ✓
                 </div>
               </div>
@@ -213,7 +230,7 @@ export default function ContactoPage() {
 
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-blue-500 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary text-graphite-dark">
                   ✓
                 </div>
               </div>
@@ -227,7 +244,7 @@ export default function ContactoPage() {
 
             <div className="flex gap-4">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-blue-500 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary text-graphite-dark">
                   ✓
                 </div>
               </div>

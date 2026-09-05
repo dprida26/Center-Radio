@@ -21,10 +21,11 @@ export default function WhatsAppButton() {
           rel="noopener noreferrer"
           onMouseEnter={() => setShowTooltip(true)}
           onMouseLeave={() => setShowTooltip(false)}
-          className="fixed bottom-8 right-8 bg-gradient-to-br from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white p-4 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-125 z-40 flex items-center justify-center animate-pulse hover:animate-none"
+          className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 bg-gradient-to-br from-green-400 to-green-600 hover:from-green-500 hover:to-green-700 text-white p-3 sm:p-4 rounded-full shadow-2xl hover:shadow-3xl transition-all hover:scale-125 z-30 flex items-center justify-center animate-pulse hover:animate-none"
           title="Contactar por WhatsApp"
         >
-          <FaWhatsapp size={32} />
+          <FaWhatsapp size={26} className="sm:hidden" />
+          <FaWhatsapp size={32} className="hidden sm:block" />
         </a>
       )}
 
@@ -43,7 +44,7 @@ export default function WhatsAppButton() {
         {info.phone && (
           <a
             href={`tel:${info.phone}`}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-l-lg shadow-lg transition-all hover:scale-110 text-xs font-semibold whitespace-nowrap flex items-center gap-1"
+            className="bg-primary hover:bg-primary-400 text-graphite-dark px-3 py-2 rounded-l-lg shadow-lg transition-all hover:scale-110 text-xs font-semibold whitespace-nowrap flex items-center gap-1"
             title="Llamar"
           >
             <span>📞</span> Llamar
@@ -52,7 +53,7 @@ export default function WhatsAppButton() {
         {info.email && (
           <a
             href={`mailto:${info.email}`}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-2 rounded-l-lg shadow-lg transition-all hover:scale-110 text-xs font-semibold whitespace-nowrap flex items-center gap-1"
+            className="bg-graphite hover:bg-graphite-light text-white px-3 py-2 rounded-l-lg shadow-lg transition-all hover:scale-110 text-xs font-semibold whitespace-nowrap flex items-center gap-1"
             title="Email"
           >
             <span>📧</span> Email

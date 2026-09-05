@@ -57,13 +57,13 @@ export default function OfertasPage() {
   return (
     <div>
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white py-16">
+      <div className="bg-accent text-white py-16">
         <div className="container">
           <div className="flex items-center gap-4 mb-4">
             <Zap size={40} className="fill-white" />
             <h1 className="text-5xl font-bold">¡Ofertas Especiales!</h1>
           </div>
-          <p className="text-xl text-red-100">
+          <p className="text-xl text-white/85">
             Aprovecha nuestras promociones exclusivas con descuentos y opciones de pago flexible
           </p>
         </div>
@@ -76,13 +76,13 @@ export default function OfertasPage() {
             <h2 className="text-3xl font-bold mb-8">Promociones Activas</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
               {promotions.map((promo) => (
-                <div key={promo.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-8 border-2 border-blue-200 shadow-lg hover:shadow-xl transition">
+                <div key={promo.id} className="bg-white rounded-2xl p-8 border-2 border-accent/20 shadow-lg hover:shadow-xl transition">
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex-1">
                       <h3 className="text-2xl font-bold text-gray-900 mb-2">{promo.name}</h3>
                       <p className="text-gray-600">{promo.description}</p>
                     </div>
-                    <div className="bg-red-600 text-white rounded-full p-6 text-center ml-4 flex-shrink-0">
+                    <div className="bg-accent text-white rounded-full p-6 text-center ml-4 flex-shrink-0">
                       <div className="text-4xl font-bold leading-none">
                         {parseInt(promo.discount_percent)}%
                       </div>
@@ -90,11 +90,11 @@ export default function OfertasPage() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-lg p-4 space-y-3">
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <span className="text-gray-600 text-sm">Interés en cuotas</span>
-                        <p className="font-bold text-green-600 text-lg">
+                        <p className="font-bold text-primary-700 text-lg">
                           {parseFloat(promo.interest_percent).toFixed(1)}%
                         </p>
                       </div>
@@ -120,7 +120,7 @@ export default function OfertasPage() {
               placeholder="Buscar productos en oferta..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-6 py-4 rounded-xl border-2 border-gray-200 focus:border-blue-600 outline-none text-lg"
+              className="w-full px-6 py-4 rounded-xl border-2 border-gray-200 focus:border-primary outline-none text-lg"
             />
             <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
           </div>

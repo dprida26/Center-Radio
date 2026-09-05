@@ -1,28 +1,54 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import ProductGrid from '@/components/ProductGrid'
-import { Search, ArrowLeft } from 'lucide-react'
+import { Search, ArrowLeft, X } from 'lucide-react'
+import { categoryService } from '@/services/api'
 
-export default function ProductosPage() {
-  const [searchQuery, setSearchQuery] = useState('')
+function ProductosContent() {
+  const searchParams = useSearchParams()
+  const categoryId = searchParams.get('category')
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '')
+  const [categoryName, setCategoryName] = useState(null)
+
+  useEffect(() => {
+    if (!categoryId) {
+      setCategoryName(null)
+      return
+    }
+    categoryService.getById(categoryId).then((cat) => setCategoryName(cat.name)).catch(() => setCategoryName(null))
+  }, [categoryId])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50">
+    <div className="min-h-screen bg-gray-50">
       <div className="container py-12">
         {/* Header */}
         <div className="mb-10">
-          <Link href="/" className="flex items-center text-blue-600 hover:text-blue-700 mb-6 transition">
+          <Link href="/" className="flex items-center text-primary-700 hover:text-primary-800 mb-6 transition">
             <ArrowLeft size={20} className="mr-2" />
             Volver al inicio
           </Link>
 
           <div className="mb-8">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-2">
-              Nuestros Productos
+            <h1 className="text-5xl font-bold text-graphite mb-2">
+              {categoryName || 'Nuestros Productos'}
             </h1>
-            <p className="text-gray-600 text-lg">Descubre nuestra amplia variedad de electrodomésticos</p>
+            <p className="text-gray-600 text-lg">
+              {categoryName
+                ? `Explorá nuestra selección de ${categoryName.toLowerCase()}`
+                : 'Descubre nuestra amplia variedad de electrodomésticos'}
+            </p>
+            {categoryId && (
+              <Link
+                href="/productos"
+                className="inline-flex items-center gap-1.5 mt-3 text-sm text-primary-700 hover:text-primary-800 font-medium"
+              >
+                <X size={14} />
+                Quitar filtro de categoría
+              </Link>
+            )}
           </div>
 
           {/* Search Bar */}
@@ -37,15 +63,23 @@ export default function ProductosPage() {
                 className="bg-transparent ml-3 outline-none w-full py-3 text-gray-700"
               />
             </div>
-            <button className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-8 rounded-lg hover:shadow-lg transition font-semibold">
+            <button className="bg-primary text-graphite-dark px-8 rounded-lg hover:bg-primary-400 hover:shadow-lg transition font-semibold">
               Buscar
             </button>
           </div>
         </div>
 
         {/* Grid de Productos */}
-        <ProductGrid searchQuery={searchQuery} />
+        <ProductGrid searchQuery={searchQuery} filters={categoryId ? { category_id: categoryId } : {}} />
       </div>
     </div>
+  )
+}
+
+export default function ProductosPage() {
+  return (
+    <Suspense fallback={<div className="container py-16 text-center text-gray-500">Cargando...</div>}>
+      <ProductosContent />
+    </Suspense>
   )
 }
