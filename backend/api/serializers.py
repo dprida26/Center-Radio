@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db.models import Sum, Q, F
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem, Expense, StockMovement, AuditLog
+from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment
 
 class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
@@ -40,6 +40,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
+    usual_supplier_name = serializers.CharField(source='usual_supplier.name', read_only=True)
     promotions = PromotionSerializer(many=True, read_only=True)
     discounted_price = serializers.SerializerMethodField()
     first_image = serializers.SerializerMethodField()
@@ -48,7 +49,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'cost_price', 'discounted_price', 'category', 'category_name', 'image', 'first_image', 'images', 'brand', 'model', 'stock', 'is_active', 'promotions', 'installment_options', 'installment_options_list', 'installment_interest_rate', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'price', 'cost_price', 'discounted_price', 'category', 'category_name', 'usual_supplier', 'usual_supplier_name', 'image', 'first_image', 'images', 'brand', 'model', 'stock', 'min_stock', 'is_active', 'promotions', 'installment_options', 'installment_options_list', 'installment_interest_rate', 'created_at', 'updated_at']
 
     def get_discounted_price(self, obj):
         return obj.get_discounted_price()
@@ -97,6 +98,39 @@ class CustomerSerializer(serializers.ModelSerializer):
         return Installment.objects.filter(sale__customer=obj, status=Installment.STATUS_OVERDUE).count()
 
 
+class SupplierSerializer(serializers.ModelSerializer):
+    total_owed = serializers.SerializerMethodField()
+    overdue_count = serializers.SerializerMethodField()
+    product_count = serializers.SerializerMethodField()
+    total_stock = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Supplier
+        fields = [
+            'id', 'name', 'contact_name', 'phone', 'email', 'address', 'ruc', 'notes', 'is_active',
+            'total_owed', 'overdue_count', 'product_count', 'total_stock',
+            'created_at', 'updated_at',
+        ]
+
+    def get_total_owed(self, obj):
+        total = PurchaseInstallment.objects.filter(
+            purchase_invoice__supplier=obj, status__in=[PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE]
+        ).aggregate(total=Sum('amount'))['total']
+        return str(total or 0)
+
+    def get_overdue_count(self, obj):
+        return PurchaseInstallment.objects.filter(
+            purchase_invoice__supplier=obj, status=PurchaseInstallment.STATUS_OVERDUE
+        ).count()
+
+    def get_product_count(self, obj):
+        return obj.usual_products.filter(is_active=True).count()
+
+    def get_total_stock(self, obj):
+        total = obj.usual_products.filter(is_active=True).aggregate(total=Sum('stock'))['total']
+        return total or 0
+
+
 class InstallmentSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='sale.customer.full_name', read_only=True)
     customer_id = serializers.IntegerField(source='sale.customer.id', read_only=True)
@@ -113,6 +147,22 @@ class InstallmentSerializer(serializers.ModelSerializer):
             'installment_count', 'sale_date',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date']
+
+
+class PurchaseInstallmentSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source='purchase_invoice.supplier.name', read_only=True)
+    supplier_id = serializers.IntegerField(source='purchase_invoice.supplier.id', read_only=True)
+    invoice_number = serializers.CharField(source='purchase_invoice.invoice_number', read_only=True)
+    installment_count = serializers.IntegerField(source='purchase_invoice.installment_count', read_only=True)
+    purchase_date = serializers.DateField(source='purchase_invoice.purchase_date', read_only=True)
+
+    class Meta:
+        model = PurchaseInstallment
+        fields = [
+            'id', 'purchase_invoice', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
+            'supplier_name', 'supplier_id', 'invoice_number', 'installment_count', 'purchase_date',
+        ]
+        read_only_fields = ['id', 'purchase_invoice', 'number', 'amount', 'due_date']
 
 
 class SaleSerializer(serializers.ModelSerializer):
@@ -235,3 +285,45 @@ class OrderSerializer(serializers.ModelSerializer):
         for item_data in items_data:
             OrderItem.objects.create(order=order, **item_data)
         return order
+
+
+class PurchaseInvoiceItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    subtotal = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PurchaseInvoiceItem
+        fields = ['id', 'product', 'product_name', 'quantity', 'unit_cost', 'subtotal']
+
+    def get_subtotal(self, obj):
+        return str(obj.subtotal)
+
+
+class PurchaseInvoiceSerializer(serializers.ModelSerializer):
+    items = PurchaseInvoiceItemSerializer(many=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True)
+    total_amount = serializers.SerializerMethodField()
+    purchase_installments = PurchaseInstallmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PurchaseInvoice
+        fields = [
+            'id', 'supplier', 'supplier_name', 'invoice_number', 'payment_type', 'installment_count',
+            'purchase_date', 'notes', 'items', 'total_amount', 'purchase_installments', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def get_total_amount(self, obj):
+        return str(obj.total_amount)
+
+    def validate_items(self, items):
+        if not items:
+            raise serializers.ValidationError('La compra debe tener al menos un producto.')
+        return items
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        invoice = PurchaseInvoice.objects.create(**validated_data)
+        for item_data in items_data:
+            PurchaseInvoiceItem.objects.create(purchase_invoice=invoice, **item_data)
+        return invoice

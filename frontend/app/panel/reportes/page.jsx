@@ -4,14 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   BarChart3, TrendingUp, DollarSign, ShoppingBag, Users, AlertTriangle,
-  Package, Loader2, Printer, TrendingDown, Wallet,
+  Package, Loader2, Printer, TrendingDown, Wallet, Truck, Clock, Inbox,
 } from 'lucide-react'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from 'recharts'
-import { reportService, categoryService } from '@/services/api'
+import { reportService, categoryService, installmentService } from '@/services/api'
 
 const PAYMENT_LABELS = { CASH: 'Contado', INSTALLMENTS: 'Cuotas' }
 const STATUS_LABELS = { PENDING: 'Pendiente', CONTACTED: 'Contactado', CONVERTED: 'Convertido', DISCARDED: 'Descartado' }
@@ -62,9 +62,21 @@ export default function ReportesPage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [tab, setTab] = useState('ventas')
+  const [dueInstallments, setDueInstallments] = useState([])
+  const [dueLoading, setDueLoading] = useState(true)
 
   useEffect(() => {
     categoryService.getAll().then(setCategories).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    setDueLoading(true)
+    installmentService
+      .getDueReport(7)
+      .then(setDueInstallments)
+      .catch(() => {})
+      .finally(() => setDueLoading(false))
   }, [])
 
   useEffect(() => {
@@ -141,6 +153,28 @@ export default function ReportesPage() {
         <FiltersBar filters={filters} setFilters={setFilters} categories={categories} />
       </div>
 
+      <div className="flex gap-1 border-b border-gray-200 print:hidden">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              tab === t.key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <t.icon size={16} />
+            {t.label}
+            {t.key === 'cobranza' && dueInstallments.length > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                {dueInstallments.length}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center py-24">
           <Loader2 size={28} className="animate-spin text-gray-400" />
@@ -148,6 +182,8 @@ export default function ReportesPage() {
       ) : error ? (
         <p className="text-red-600">{error}</p>
       ) : (
+        <>
+        {tab === 'ventas' && (
         <>
           <SummaryCards data={data} />
 
@@ -242,7 +278,11 @@ export default function ReportesPage() {
               </ul>
             )}
           </div>
+        </>
+        )}
 
+        {tab === 'cobranza' && (
+        <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RankingCard
               title="Mejores clientes (por monto comprado)"
@@ -294,6 +334,47 @@ export default function ReportesPage() {
             </div>
           </div>
 
+          <DueInstallmentsReport installments={dueInstallments} loading={dueLoading} />
+        </>
+        )}
+
+        {tab === 'proveedores' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+              <Truck size={16} className="text-amber-500" />
+              Cuentas por pagar a proveedores
+            </h2>
+            <div className="grid grid-cols-3 gap-3 mb-5">
+              <CollectionBox label="Pagado" value={data.payables.paid} className="bg-green-50 text-green-700" />
+              <CollectionBox label="Pendiente" value={data.payables.pending} className="bg-amber-50 text-amber-700" />
+              <CollectionBox label="Atrasado" value={data.payables.overdue} className="bg-red-50 text-red-700" />
+            </div>
+            <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2">Proveedores con mayor deuda</h3>
+            {data.top_creditors.length === 0 ? (
+              <EmptyState text="No hay deudas pendientes con proveedores." />
+            ) : (
+              <ul className="space-y-2">
+                {data.top_creditors.slice(0, 6).map((s) => (
+                  <li key={s.id} className="flex items-center justify-between text-sm">
+                    <Link href={`/panel/proveedores/${s.id}`} className="text-blue-600 hover:underline truncate">
+                      {s.name}
+                    </Link>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {s.overdue_count > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">
+                          {s.overdue_count} atrasada(s)
+                        </span>
+                      )}
+                      <span className="font-semibold text-gray-900">{formatGs(s.debt)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {tab === 'pedidos' && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Pedidos web (bandeja de entrada)</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -307,7 +388,92 @@ export default function ReportesPage() {
               />
             </div>
           </div>
+        )}
         </>
+      )}
+    </div>
+  )
+}
+
+const TABS = [
+  { key: 'ventas', label: 'Ventas', icon: BarChart3 },
+  { key: 'cobranza', label: 'Cobranza', icon: AlertTriangle },
+  { key: 'proveedores', label: 'Proveedores', icon: Truck },
+  { key: 'pedidos', label: 'Pedidos', icon: Inbox },
+]
+
+function daysUntil(dateStr) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(`${dateStr}T00:00:00`)
+  return Math.round((due - today) / (1000 * 60 * 60 * 24))
+}
+
+function DueInstallmentsReport({ installments, loading }) {
+  const overdue = installments.filter((i) => i.status === 'OVERDUE')
+  const upcoming = installments.filter((i) => i.status !== 'OVERDUE')
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+      <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+        <Clock size={16} className="text-amber-500" />
+        Cuotas atrasadas y próximas a vencer (7 días)
+      </h2>
+      <p className="text-xs text-gray-400 mb-4">
+        {overdue.length} atrasada(s) · {upcoming.length} por vencer
+      </p>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : installments.length === 0 ? (
+        <EmptyState text="No hay cuotas atrasadas ni próximas a vencer." />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b">
+                <th className="pb-2 font-medium">Cliente</th>
+                <th className="pb-2 font-medium">Producto</th>
+                <th className="pb-2 font-medium text-center">Cuota</th>
+                <th className="pb-2 font-medium">Vencimiento</th>
+                <th className="pb-2 font-medium text-right">Monto</th>
+                <th className="pb-2 font-medium text-center">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {installments.map((inst) => {
+                const days = daysUntil(inst.due_date)
+                const isOverdue = inst.status === 'OVERDUE'
+                return (
+                  <tr key={inst.id} className="border-b last:border-0">
+                    <td className="py-2">
+                      <Link href={`/panel/clientes/${inst.customer_id}`} className="text-blue-600 hover:underline font-medium">
+                        {inst.customer_name}
+                      </Link>
+                    </td>
+                    <td className="py-2 text-gray-600">{inst.product_name}</td>
+                    <td className="py-2 text-center text-gray-600">{inst.number}/{inst.installment_count}</td>
+                    <td className="py-2 text-gray-600">{inst.due_date}</td>
+                    <td className="py-2 text-right font-semibold text-gray-900">{formatGs(inst.amount)}</td>
+                    <td className="py-2 text-center">
+                      {isOverdue ? (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                          Atrasada ({Math.abs(days)}d)
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                          {days === 0 ? 'Vence hoy' : `Vence en ${days}d`}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

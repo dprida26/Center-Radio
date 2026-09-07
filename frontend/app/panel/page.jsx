@@ -2,51 +2,64 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, TrendingUp, Wallet, Inbox } from 'lucide-react'
-import { installmentService, orderService } from '@/services/api'
+import { AlertTriangle, Clock, Inbox, PackageX, Truck, CheckCircle2 } from 'lucide-react'
+import { reportService } from '@/services/api'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
 }
 
-function formatMonth(isoDate) {
-  const date = new Date(isoDate)
-  return date.toLocaleDateString('es-PY', { month: 'long', year: 'numeric' })
+function daysUntil(dateStr) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const due = new Date(`${dateStr}T00:00:00`)
+  return Math.round((due - today) / (1000 * 60 * 60 * 24))
 }
 
 export default function PanelDashboard() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [pendingOrders, setPendingOrders] = useState(0)
 
   useEffect(() => {
-    installmentService
-      .getDashboard()
+    reportService
+      .getHomeDashboard()
       .then(setData)
-      .catch(() => setError('No se pudo cargar el dashboard.'))
+      .catch(() => setError('No se pudo cargar el panel.'))
       .finally(() => setLoading(false))
-
-    orderService
-      .getAll({ status: 'PENDING' })
-      .then((orders) => setPendingOrders(orders.length))
-      .catch(() => {})
   }, [])
 
-  if (loading) return <p className="text-gray-500">Cargando dashboard...</p>
+  if (loading) return <p className="text-gray-500">Cargando...</p>
   if (error) return <p className="text-red-600">{error}</p>
   if (!data) return null
 
-  const { totals, sales_by_month, top_debtors, upcoming_installments, overdue_installments } = data
+  const { pending_orders, customer_installments, supplier_installments, low_stock_products } = data
+  const overdueCustomer = customer_installments.filter((i) => i.status === 'OVERDUE')
+  const upcomingCustomer = customer_installments.filter((i) => i.status !== 'OVERDUE')
+  const overdueSupplier = supplier_installments.filter((i) => i.status === 'OVERDUE')
+  const upcomingSupplier = supplier_installments.filter((i) => i.status !== 'OVERDUE')
+
+  const nothingUrgent =
+    pending_orders === 0 &&
+    customer_installments.length === 0 &&
+    supplier_installments.length === 0 &&
+    low_stock_products.length === 0
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard de Cobranzas</h1>
-        <p className="text-gray-500 text-sm mt-1">Resumen general de ventas y cuotas</p>
+        <h1 className="text-2xl font-bold text-gray-900">Inicio</h1>
+        <p className="text-gray-500 text-sm mt-1">Lo que necesita tu atención hoy</p>
       </div>
 
-      {pendingOrders > 0 && (
+      {nothingUrgent && (
+        <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-xl p-5">
+          <CheckCircle2 size={24} className="text-green-600" />
+          <p className="text-green-800 font-semibold">Todo al día. No hay pendientes urgentes.</p>
+        </div>
+      )}
+
+      {pending_orders > 0 && (
         <Link
           href="/panel/pedidos"
           className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-4 hover:bg-amber-100 transition-colors"
@@ -54,104 +67,82 @@ export default function PanelDashboard() {
           <div className="flex items-center gap-3">
             <Inbox size={20} className="text-amber-700" />
             <p className="text-amber-800 font-semibold">
-              Tenés {pendingOrders} pedido{pendingOrders > 1 ? 's' : ''} nuevo{pendingOrders > 1 ? 's' : ''} sin revisar
+              Tenés {pending_orders} pedido{pending_orders > 1 ? 's' : ''} nuevo{pending_orders > 1 ? 's' : ''} sin revisar
             </p>
           </div>
           <span className="text-sm text-amber-700 font-medium">Ver bandeja →</span>
         </Link>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard
-          icon={Wallet}
-          label="Pendiente de Cobro"
-          value={formatGs(totals.total_pending)}
-          color="blue"
-        />
-        <StatCard
-          icon={AlertTriangle}
-          label="Total Atrasado"
-          value={formatGs(totals.total_overdue)}
-          color="red"
-        />
-        <StatCard
-          icon={TrendingUp}
-          label="Total Cobrado"
-          value={formatGs(totals.total_paid)}
-          color="green"
-        />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Section title="Clientes con Mayor Deuda">
-          {top_debtors.length === 0 ? (
-            <EmptyState text="No hay clientes con deuda pendiente." />
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b">
-                  <th className="pb-2 font-medium">Cliente</th>
-                  <th className="pb-2 font-medium text-right">Deuda</th>
-                  <th className="pb-2 font-medium text-right">Atrasadas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {top_debtors.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0">
-                    <td className="py-2">
-                      <Link href={`/panel/clientes/${c.id}`} className="text-blue-600 hover:underline">
-                        {c.full_name}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-right">{formatGs(c.debt)}</td>
-                    <td className={`py-2 text-right ${c.overdue_count > 0 ? 'text-red-600 font-semibold' : ''}`}>
-                      {c.overdue_count}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Section
+          title="Cobranza a clientes"
+          icon={AlertTriangle}
+          iconColor="text-red-600"
+          badge={customer_installments.length}
+          emptyText="No hay cuotas atrasadas ni por vencer."
+          seeMoreHref="/panel/reportes"
+        >
+          {overdueCustomer.length > 0 && (
+            <InstallmentGroup label={`${overdueCustomer.length} atrasada(s)`} labelClass="text-red-600">
+              {overdueCustomer.map((row) => (
+                <CustomerInstallmentRow key={row.id} row={row} overdue />
+              ))}
+            </InstallmentGroup>
+          )}
+          {upcomingCustomer.length > 0 && (
+            <InstallmentGroup label={`${upcomingCustomer.length} vence(n) en 2 días`} labelClass="text-amber-600">
+              {upcomingCustomer.map((row) => (
+                <CustomerInstallmentRow key={row.id} row={row} />
+              ))}
+            </InstallmentGroup>
           )}
         </Section>
 
-        <Section title="Ventas por Mes">
-          {sales_by_month.length === 0 ? (
-            <EmptyState text="No hay ventas registradas." />
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b">
-                  <th className="pb-2 font-medium">Mes</th>
-                  <th className="pb-2 font-medium text-right">Ventas</th>
-                  <th className="pb-2 font-medium text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sales_by_month.map((row) => (
-                  <tr key={row.month} className="border-b last:border-0">
-                    <td className="py-2 capitalize">{formatMonth(row.month)}</td>
-                    <td className="py-2 text-right">{row.count}</td>
-                    <td className="py-2 text-right">{formatGs(row.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Section
+          title="Pagos a proveedores"
+          icon={Truck}
+          iconColor="text-amber-600"
+          badge={supplier_installments.length}
+          emptyText="No hay cuotas atrasadas ni por vencer."
+          seeMoreHref="/panel/reportes"
+        >
+          {overdueSupplier.length > 0 && (
+            <InstallmentGroup label={`${overdueSupplier.length} atrasada(s)`} labelClass="text-red-600">
+              {overdueSupplier.map((row) => (
+                <SupplierInstallmentRow key={row.id} row={row} overdue />
+              ))}
+            </InstallmentGroup>
+          )}
+          {upcomingSupplier.length > 0 && (
+            <InstallmentGroup label={`${upcomingSupplier.length} vence(n) en 2 días`} labelClass="text-amber-600">
+              {upcomingSupplier.map((row) => (
+                <SupplierInstallmentRow key={row.id} row={row} />
+              ))}
+            </InstallmentGroup>
           )}
         </Section>
 
-        <Section title="Cuotas Atrasadas" icon={AlertTriangle} iconColor="text-red-600">
-          {overdue_installments.length === 0 ? (
-            <EmptyState text="No hay cuotas atrasadas." />
-          ) : (
-            <InstallmentTable rows={overdue_installments} highlight="red" />
-          )}
-        </Section>
-
-        <Section title="Próximos Vencimientos (7 días)" icon={Clock} iconColor="text-amber-600">
-          {upcoming_installments.length === 0 ? (
-            <EmptyState text="No hay vencimientos próximos." />
-          ) : (
-            <InstallmentTable rows={upcoming_installments} highlight="amber" />
+        <Section
+          title="Stock bajo"
+          icon={PackageX}
+          iconColor="text-orange-600"
+          badge={low_stock_products.length}
+          emptyText="No hay productos con stock bajo."
+        >
+          {low_stock_products.length > 0 && (
+            <ul className="space-y-2">
+              {low_stock_products.map((p) => (
+                <li key={p.id} className="flex items-center justify-between text-sm">
+                  <Link href="/panel/productos" className="text-blue-600 hover:underline">
+                    {p.name}
+                  </Link>
+                  <span className={`font-semibold ${p.stock === 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                    {p.stock === 0 ? 'Sin stock' : `${p.stock} unidad(es)`}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </Section>
       </div>
@@ -159,65 +150,78 @@ export default function PanelDashboard() {
   )
 }
 
-function StatCard({ icon: Icon, label, value, color }) {
-  const colors = {
-    blue: 'bg-blue-50 text-blue-700 border-blue-200',
-    red: 'bg-red-50 text-red-700 border-red-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
-  }
-  return (
-    <div className={`rounded-xl border p-5 ${colors[color]}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon size={18} />
-        <p className="text-xs font-semibold uppercase tracking-wide">{label}</p>
-      </div>
-      <p className="text-2xl font-bold">{value}</p>
-    </div>
-  )
-}
-
-function Section({ title, icon: Icon, iconColor, children }) {
+function Section({ title, icon: Icon, iconColor, badge, children, emptyText, seeMoreHref }) {
+  const isEmpty = !children || (Array.isArray(children) && children.every((c) => !c))
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-4">
-        {Icon && <Icon size={16} className={iconColor} />}
-        <h2 className="font-semibold text-gray-900">{title}</h2>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Icon size={16} className={iconColor} />
+          <h2 className="font-semibold text-gray-900">{title}</h2>
+          {badge > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{badge}</span>
+          )}
+        </div>
+        {seeMoreHref && badge > 0 && (
+          <Link href={seeMoreHref} className="text-xs text-blue-600 hover:underline font-medium">
+            Ver todo
+          </Link>
+        )}
       </div>
-      {children}
+      {badge === 0 ? <EmptyState text={emptyText} /> : children}
     </div>
+  )
+}
+
+function InstallmentGroup({ label, labelClass, children }) {
+  return (
+    <div className="mb-3 last:mb-0">
+      <p className={`text-xs font-semibold uppercase mb-2 ${labelClass}`}>{label}</p>
+      <ul className="space-y-2">{children}</ul>
+    </div>
+  )
+}
+
+function CustomerInstallmentRow({ row, overdue }) {
+  const days = daysUntil(row.due_date)
+  return (
+    <li className="flex items-center justify-between text-sm">
+      <div className="min-w-0">
+        <Link href={`/panel/clientes/${row.customer_id}`} className="text-blue-600 hover:underline font-medium truncate">
+          {row.customer_name}
+        </Link>
+        <p className="text-xs text-gray-500 truncate">{row.product_name}</p>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="font-semibold text-gray-900">{formatGs(row.amount)}</p>
+        <p className={`text-xs ${overdue ? 'text-red-600' : 'text-amber-600'}`}>
+          {overdue ? `Atrasada ${Math.abs(days)}d` : days === 0 ? 'Vence hoy' : `Vence en ${days}d`}
+        </p>
+      </div>
+    </li>
+  )
+}
+
+function SupplierInstallmentRow({ row, overdue }) {
+  const days = daysUntil(row.due_date)
+  return (
+    <li className="flex items-center justify-between text-sm">
+      <div className="min-w-0">
+        <Link href={`/panel/proveedores/${row.supplier_id}`} className="text-blue-600 hover:underline font-medium truncate">
+          {row.supplier_name}
+        </Link>
+        <p className="text-xs text-gray-500 truncate">Cuota {row.number}</p>
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="font-semibold text-gray-900">{formatGs(row.amount)}</p>
+        <p className={`text-xs ${overdue ? 'text-red-600' : 'text-amber-600'}`}>
+          {overdue ? `Atrasada ${Math.abs(days)}d` : days === 0 ? 'Vence hoy' : `Vence en ${days}d`}
+        </p>
+      </div>
+    </li>
   )
 }
 
 function EmptyState({ text }) {
   return <p className="text-sm text-gray-400 italic py-4 text-center">{text}</p>
-}
-
-function InstallmentTable({ rows, highlight }) {
-  const highlightClass = highlight === 'red' ? 'text-red-600 font-semibold' : 'text-amber-600 font-semibold'
-  return (
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-left text-gray-500 border-b">
-          <th className="pb-2 font-medium">Cliente</th>
-          <th className="pb-2 font-medium">Producto</th>
-          <th className="pb-2 font-medium text-right">Monto</th>
-          <th className="pb-2 font-medium text-right">Vence</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id} className="border-b last:border-0">
-            <td className="py-2">
-              <Link href={`/panel/clientes/${row.customer_id}`} className="text-blue-600 hover:underline">
-                {row.customer_name}
-              </Link>
-            </td>
-            <td className="py-2 text-gray-600">{row.product_name}</td>
-            <td className="py-2 text-right">{formatGs(row.amount)}</td>
-            <td className={`py-2 text-right ${highlightClass}`}>{row.due_date}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
 }

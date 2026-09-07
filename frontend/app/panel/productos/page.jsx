@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { Plus, Pencil, Trash2, X, Loader2, Search, Package, ImagePlus, PackagePlus, History, ArrowUp, ArrowDown, Settings2 } from 'lucide-react'
-import { productService, categoryService } from '@/services/api'
+import { productService, categoryService, supplierService } from '@/services/api'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -11,6 +11,7 @@ function formatGs(value) {
 export default function ProductosPage() {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
+  const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [editingProduct, setEditingProduct] = useState(null)
@@ -30,6 +31,7 @@ export default function ProductosPage() {
 
   useEffect(() => {
     categoryService.getAll().then(setCategories)
+    supplierService.getAll().then(setSuppliers)
   }, [])
 
   useEffect(() => {
@@ -122,7 +124,16 @@ export default function ProductosPage() {
                   <td className="px-5 py-3 text-gray-600">{p.category_name}</td>
                   <td className="px-5 py-3 text-right">{formatGs(p.price)}</td>
                   <td className="px-5 py-3 text-right">
-                    <span className={p.stock === 0 ? 'text-red-600 font-semibold' : 'text-gray-700'}>
+                    <span
+                      className={
+                        p.stock === 0
+                          ? 'text-red-600 font-semibold'
+                          : p.stock <= p.min_stock
+                          ? 'text-orange-600 font-semibold'
+                          : 'text-gray-700'
+                      }
+                      title={p.stock <= p.min_stock ? `Stock mínimo: ${p.min_stock}` : undefined}
+                    >
                       {p.stock}
                     </span>
                   </td>
@@ -162,6 +173,7 @@ export default function ProductosPage() {
         <ProductFormModal
           product={editingProduct}
           categories={categories}
+          suppliers={suppliers}
           onClose={() => setShowForm(false)}
           onSaved={handleSaved}
         />
@@ -179,6 +191,7 @@ export default function ProductosPage() {
       {stockTarget && (
         <AddStockModal
           product={stockTarget}
+          suppliers={suppliers}
           onClose={() => setStockTarget(null)}
           onSaved={() => { setStockTarget(null); load() }}
         />
@@ -195,16 +208,18 @@ export default function ProductosPage() {
   )
 }
 
-function ProductFormModal({ product, categories, onClose, onSaved }) {
+function ProductFormModal({ product, categories, suppliers, onClose, onSaved }) {
   const isEdit = !!product
   const [name, setName] = useState(product?.name || '')
   const [description, setDescription] = useState(product?.description || '')
   const [price, setPrice] = useState(product?.price || '')
   const [costPrice, setCostPrice] = useState(product?.cost_price || '')
+  const [usualSupplierId, setUsualSupplierId] = useState(product?.usual_supplier || '')
   const [categoryId, setCategoryId] = useState(product?.category || categories[0]?.id || '')
   const [brand, setBrand] = useState(product?.brand || '')
   const [model, setModel] = useState(product?.model || '')
   const [stock, setStock] = useState(product?.stock ?? 0)
+  const [minStock, setMinStock] = useState(product?.min_stock ?? 3)
   const [isActive, setIsActive] = useState(product?.is_active ?? true)
   const [installmentOptions, setInstallmentOptions] = useState(product?.installment_options || '3,6,12')
   const [interestRate, setInterestRate] = useState(product?.installment_interest_rate || 0)
@@ -244,10 +259,12 @@ function ProductFormModal({ product, categories, onClose, onSaved }) {
       description,
       price,
       cost_price: costPrice || 0,
+      usual_supplier: usualSupplierId || null,
       category: categoryId,
       brand,
       model,
       stock,
+      min_stock: minStock,
       is_active: isActive,
       installment_options: installmentOptions,
       installment_interest_rate: interestRate,
@@ -336,6 +353,20 @@ function ProductFormModal({ product, categories, onClose, onSaved }) {
             </select>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Proveedor Habitual (opcional)</label>
+            <select
+              value={usualSupplierId}
+              onChange={(e) => setUsualSupplierId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Sin proveedor habitual</option>
+              {suppliers?.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Precio de Venta (Gs.)</label>
@@ -360,23 +391,36 @@ function ProductFormModal({ product, categories, onClose, onSaved }) {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Stock {isEdit && <span className="text-gray-400 font-normal">(usá "Agregar stock" en el listado para sumar unidades)</span>}
-            </label>
-            <input
-              type="number"
-              value={stock}
-              onChange={(e) => setStock(e.target.value)}
-              disabled={isEdit}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-            />
-            {!isEdit && costPrice > 0 && stock > 0 && (
-              <p className="text-xs text-gray-400 mt-1">
-                Se registrará un gasto de mercadería por Gs. {(costPrice * stock).toLocaleString('es-PY')}
-              </p>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Stock {isEdit && <span className="text-gray-400 font-normal text-xs">(usá "Agregar stock")</span>}
+              </label>
+              <input
+                type="number"
+                value={stock}
+                onChange={(e) => setStock(e.target.value)}
+                disabled={isEdit}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Stock Mínimo</label>
+              <input
+                type="number"
+                min={0}
+                value={minStock}
+                onChange={(e) => setMinStock(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="text-xs text-gray-400 mt-1">Avisa cuando el stock llegue a este nivel o menos</p>
+            </div>
           </div>
+          {!isEdit && costPrice > 0 && stock > 0 && (
+            <p className="text-xs text-gray-400 -mt-2">
+              Se registrará un gasto de mercadería por Gs. {(costPrice * stock).toLocaleString('es-PY')}
+            </p>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -520,8 +564,9 @@ function DeleteConfirmModal({ product, busy, onCancel, onConfirm }) {
   )
 }
 
-function AddStockModal({ product, onClose, onSaved }) {
+function AddStockModal({ product, suppliers, onClose, onSaved }) {
   const [quantity, setQuantity] = useState('')
+  const [supplierId, setSupplierId] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -534,7 +579,7 @@ function AddStockModal({ product, onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      await productService.addStock(product.id, Number(quantity))
+      await productService.addStock(product.id, Number(quantity), '', supplierId || null)
       onSaved()
     } catch (err) {
       const detail = err?.response?.data?.error
@@ -571,6 +616,20 @@ function AddStockModal({ product, onClose, onSaved }) {
               required
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Proveedor (opcional)</label>
+            <select
+              value={supplierId}
+              onChange={(e) => setSupplierId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Sin proveedor</option>
+              {suppliers?.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
 
           {product.cost_price > 0 ? (

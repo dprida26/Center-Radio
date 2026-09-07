@@ -7,11 +7,15 @@ from django.utils import timezone
 from django.db.models import Q, Sum, Count, F
 from django.db.models.functions import TruncMonth, TruncDay, TruncWeek
 from datetime import date, timedelta
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, Expense, AuditLog
+from .models import (
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, Expense, AuditLog,
+    Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
+)
 from .serializers import (
     CategorySerializer, ProductSerializer, PromotionSerializer, CompanyInfoSerializer,
     CustomerSerializer, SaleSerializer, InstallmentSerializer, OrderSerializer, ProductImageSerializer,
     ExpenseSerializer, StockMovementSerializer, AuditLogSerializer,
+    SupplierSerializer, PurchaseInvoiceSerializer, PurchaseInstallmentSerializer,
 )
 from .audit import AuditMixin, log_action
 
@@ -151,7 +155,12 @@ class ProductViewSet(AuditMixin, viewsets.ModelViewSet):
             return Response({'error': 'La cantidad debe ser mayor a cero.'}, status=400)
 
         note = request.data.get('note', '')
-        expense = product.add_stock(quantity, note=note)
+        supplier = None
+        supplier_id = request.data.get('supplier')
+        if supplier_id:
+            supplier = Supplier.objects.filter(pk=supplier_id).first()
+
+        expense = product.add_stock(quantity, note=note, supplier=supplier)
         log_action(
             request.user, AuditLog.ACTION_CUSTOM, product,
             description=f'Agregó stock: +{quantity} ({note or "sin nota"})',
@@ -245,6 +254,28 @@ class CustomerViewSet(AuditMixin, viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
+    audit_fields = ['name', 'contact_name', 'phone', 'email', 'address', 'ruc', 'is_active']
+    queryset = Supplier.objects.all().order_by('name')
+    serializer_class = SupplierSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'contact_name', 'phone', 'email', 'ruc']
+
+    @action(detail=True, methods=['get'])
+    def purchases(self, request, pk=None):
+        supplier = self.get_object()
+        invoices = supplier.purchase_invoices.all().order_by('-purchase_date')
+        serializer = PurchaseInvoiceSerializer(invoices, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['get'])
+    def products(self, request, pk=None):
+        supplier = self.get_object()
+        products = supplier.usual_products.filter(is_active=True)
+        serializer = ProductSerializer(products, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
 class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
     queryset = Sale.objects.all().select_related('customer', 'product').order_by('-sale_date', '-created_at')
     serializer_class = SaleSerializer
@@ -256,6 +287,29 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
         sale.generate_installments()
         sale.product.register_sale_exit(sale.quantity, reason=f'Venta #{sale.id}')
         log_action(self.request.user, AuditLog.ACTION_CREATE, sale)
+
+
+class PurchaseInvoiceViewSet(AuditMixin, viewsets.ModelViewSet):
+    queryset = PurchaseInvoice.objects.all().select_related('supplier').prefetch_related('items', 'items__product', 'purchase_installments').order_by('-purchase_date', '-created_at')
+    serializer_class = PurchaseInvoiceSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['supplier__name', 'invoice_number']
+
+    def perform_create(self, serializer):
+        invoice = serializer.save()
+        skip_expense = invoice.payment_type == PurchaseInvoice.PAYMENT_INSTALLMENTS
+        for item in invoice.items.select_related('product').all():
+            item.product.add_stock(
+                item.quantity,
+                note=f'Compra #{invoice.id} - {invoice.supplier.name}',
+                skip_expense=skip_expense,
+                supplier=invoice.supplier,
+            )
+            if not item.product.usual_supplier_id:
+                item.product.usual_supplier = invoice.supplier
+                item.product.save(update_fields=['usual_supplier'])
+        invoice.generate_installments()
+        log_action(self.request.user, AuditLog.ACTION_CREATE, invoice)
 
 
 class ExpenseViewSet(AuditMixin, viewsets.ModelViewSet):
@@ -325,6 +379,21 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
+    def due_report(self, request):
+        from datetime import timedelta
+        today = timezone.now().date()
+        Installment.objects.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(
+            status=Installment.STATUS_OVERDUE
+        )
+        days_ahead = int(request.query_params.get('days_ahead', 7))
+        qs = Installment.objects.filter(
+            status__in=[Installment.STATUS_OVERDUE, Installment.STATUS_PENDING],
+            due_date__lte=today + timedelta(days=days_ahead),
+        ).select_related('sale', 'sale__customer', 'sale__product').order_by('due_date')
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
     def dashboard(self, request):
         today = timezone.now().date()
 
@@ -376,6 +445,98 @@ class InstallmentViewSet(viewsets.ModelViewSet):
             ],
             'upcoming_installments': InstallmentSerializer(upcoming, many=True).data,
             'overdue_installments': InstallmentSerializer(overdue, many=True).data,
+        })
+
+
+class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
+    queryset = PurchaseInstallment.objects.all().select_related('purchase_invoice', 'purchase_invoice__supplier')
+    serializer_class = PurchaseInstallmentSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        today = timezone.now().date()
+        qs.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(status=PurchaseInstallment.STATUS_OVERDUE)
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            qs = qs.filter(status=status_param)
+
+        supplier_id = self.request.query_params.get('supplier_id')
+        if supplier_id:
+            qs = qs.filter(purchase_invoice__supplier_id=supplier_id)
+
+        due_before = self.request.query_params.get('due_before')
+        if due_before:
+            qs = qs.filter(due_date__lte=due_before)
+
+        return qs.order_by('due_date')
+
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        installment = self.get_object()
+        paid_amount = request.data.get('paid_amount')
+        installment.mark_as_paid(paid_amount=paid_amount)
+        log_action(
+            request.user, AuditLog.ACTION_CUSTOM, installment,
+            description=f'Marcó como pagada la cuota {installment.number} a proveedor (Gs. {installment.paid_amount})',
+        )
+        serializer = self.get_serializer(installment)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def revert_payment(self, request, pk=None):
+        installment = self.get_object()
+        if installment.status != PurchaseInstallment.STATUS_PAID:
+            return Response({'error': 'Esta cuota no está marcada como pagada.'}, status=400)
+        installment.revert_payment()
+        log_action(
+            request.user, AuditLog.ACTION_CUSTOM, installment,
+            description=f'Revirtió el pago de la cuota {installment.number} a proveedor',
+        )
+        serializer = self.get_serializer(installment)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'])
+    def dashboard(self, request):
+        today = timezone.now().date()
+
+        PurchaseInstallment.objects.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(
+            status=PurchaseInstallment.STATUS_OVERDUE
+        )
+
+        totals = PurchaseInstallment.objects.aggregate(
+            total_pending=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_PENDING)),
+            total_overdue=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_OVERDUE)),
+            total_paid=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_PAID)),
+        )
+
+        top_creditors = Supplier.objects.annotate(
+            debt=Sum('purchase_invoices__purchase_installments__amount', filter=Q(purchase_invoices__purchase_installments__status__in=[
+                PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE
+            ])),
+            overdue_count=Count('purchase_invoices__purchase_installments', filter=Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE)),
+        ).filter(debt__gt=0).order_by('-debt')[:10]
+
+        upcoming = PurchaseInstallment.objects.filter(
+            status=PurchaseInstallment.STATUS_PENDING,
+            due_date__gte=today,
+            due_date__lte=today + timedelta(days=7),
+        ).select_related('purchase_invoice', 'purchase_invoice__supplier').order_by('due_date')
+
+        overdue = PurchaseInstallment.objects.filter(
+            status=PurchaseInstallment.STATUS_OVERDUE
+        ).select_related('purchase_invoice', 'purchase_invoice__supplier').order_by('due_date')
+
+        return Response({
+            'totals': {k: str(v or 0) for k, v in totals.items()},
+            'top_creditors': [
+                {
+                    'id': s.id, 'name': s.name,
+                    'debt': str(s.debt), 'overdue_count': s.overdue_count,
+                } for s in top_creditors
+            ],
+            'upcoming_installments': PurchaseInstallmentSerializer(upcoming, many=True).data,
+            'overdue_installments': PurchaseInstallmentSerializer(overdue, many=True).data,
         })
 
 
@@ -484,6 +645,45 @@ class OrderViewSet(viewsets.ModelViewSet):
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
+def home_dashboard(request):
+    today = timezone.now().date()
+    soon = today + timedelta(days=2)
+
+    Installment.objects.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(
+        status=Installment.STATUS_OVERDUE
+    )
+    PurchaseInstallment.objects.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(
+        status=PurchaseInstallment.STATUS_OVERDUE
+    )
+
+    customer_installments = Installment.objects.filter(
+        status__in=[Installment.STATUS_OVERDUE, Installment.STATUS_PENDING],
+        due_date__lte=soon,
+    ).select_related('sale', 'sale__customer', 'sale__product').order_by('due_date')
+
+    supplier_installments = PurchaseInstallment.objects.filter(
+        status__in=[PurchaseInstallment.STATUS_OVERDUE, PurchaseInstallment.STATUS_PENDING],
+        due_date__lte=soon,
+    ).select_related('purchase_invoice', 'purchase_invoice__supplier').order_by('due_date')
+
+    pending_orders = Order.objects.filter(status=Order.STATUS_PENDING).count()
+
+    low_stock_products = Product.objects.filter(
+        is_active=True, stock__lte=F('min_stock')
+    ).order_by('stock')[:10]
+
+    return Response({
+        'pending_orders': pending_orders,
+        'customer_installments': InstallmentSerializer(customer_installments, many=True).data,
+        'supplier_installments': PurchaseInstallmentSerializer(supplier_installments, many=True).data,
+        'low_stock_products': [
+            {'id': p.id, 'name': p.name, 'stock': p.stock, 'min_stock': p.min_stock} for p in low_stock_products
+        ],
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
 def reports(request):
     params = request.query_params
     today = timezone.now().date()
@@ -570,6 +770,29 @@ def reports(request):
         ).filter(debt__gt=0).order_by('-debt')[:10]
     )
 
+    PurchaseInstallment.objects.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(
+        status=PurchaseInstallment.STATUS_OVERDUE
+    )
+
+    purchase_invoices_qs = PurchaseInvoice.objects.filter(purchase_date__gte=date_from, purchase_date__lte=date_to)
+
+    purchase_installment_totals = PurchaseInstallment.objects.filter(
+        purchase_invoice__in=purchase_invoices_qs
+    ).aggregate(
+        pending=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_PENDING)),
+        overdue=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_OVERDUE)),
+        paid=Sum('paid_amount', filter=Q(status=PurchaseInstallment.STATUS_PAID)),
+    )
+
+    top_creditors = list(
+        Supplier.objects.annotate(
+            debt=Sum('purchase_invoices__purchase_installments__amount', filter=Q(purchase_invoices__purchase_installments__status__in=[
+                PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE
+            ])),
+            overdue_count=Count('purchase_invoices__purchase_installments', filter=Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE)),
+        ).filter(debt__gt=0).order_by('-debt')[:10]
+    )
+
     expenses_qs = Expense.objects.filter(expense_date__gte=date_from, expense_date__lte=date_to)
     total_expenses = expenses_qs.aggregate(total=Sum('amount'))['total'] or 0
     expenses_by_category = list(
@@ -636,6 +859,17 @@ def reports(request):
                 'id': c.id, 'full_name': c.full_name, 'document_number': c.document_number,
                 'debt': str(c.debt), 'overdue_count': c.overdue_count,
             } for c in top_debtors
+        ],
+        'payables': {
+            'pending': str(purchase_installment_totals['pending'] or 0),
+            'overdue': str(purchase_installment_totals['overdue'] or 0),
+            'paid': str(purchase_installment_totals['paid'] or 0),
+        },
+        'top_creditors': [
+            {
+                'id': s.id, 'name': s.name,
+                'debt': str(s.debt), 'overdue_count': s.overdue_count,
+            } for s in top_creditors
         ],
         'orders': {
             'total': total_orders,

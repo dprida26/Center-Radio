@@ -2,7 +2,10 @@ from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Sum
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem, Expense, StockMovement, AuditLog
+from .models import (
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem,
+    Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
+)
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -39,12 +42,13 @@ class ProductAdmin(admin.ModelAdmin):
     list_per_page = 25
     date_hierarchy = 'created_at'
     inlines = [ProductImageInline]
+    autocomplete_fields = ['usual_supplier']
     fieldsets = (
         (_('Información Básica'), {
             'fields': ('name', 'description', 'category')
         }),
         (_('Detalles del Producto'), {
-            'fields': ('brand', 'model', 'price', 'cost_price', 'image'),
+            'fields': ('brand', 'model', 'price', 'cost_price', 'usual_supplier', 'image'),
             'description': 'El campo "Imagen" es el legado de un producto sin galería. Usá la sección de Imágenes más abajo para cargar varias fotos.'
         }),
         (_('Inventario'), {
@@ -170,6 +174,48 @@ class CustomerAdmin(admin.ModelAdmin):
     overdue_count_display.short_description = 'Cuotas Atrasadas'
 
 
+class HasDebtToSupplierFilter(admin.SimpleListFilter):
+    title = 'con deuda pendiente'
+    parameter_name = 'has_debt'
+
+    def lookups(self, request, model_admin):
+        return [('yes', 'Con deuda'), ('overdue', 'Con atraso')]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'yes':
+            return queryset.filter(purchase_invoices__purchase_installments__status__in=[
+                PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE
+            ]).distinct()
+        if self.value() == 'overdue':
+            return queryset.filter(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE).distinct()
+        return queryset
+
+
+@admin.register(Supplier)
+class SupplierAdmin(admin.ModelAdmin):
+    list_display = ['name', 'contact_name', 'phone', 'email', 'total_owed_display', 'is_active']
+    list_filter = [HasDebtToSupplierFilter, 'is_active']
+    search_fields = ['name', 'contact_name', 'phone', 'email', 'ruc']
+    list_per_page = 25
+    fieldsets = (
+        (_('Datos del Proveedor'), {
+            'fields': ('name', 'contact_name', 'phone', 'email', 'address', 'ruc', 'notes', 'is_active')
+        }),
+        (_('Metadata'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    readonly_fields = ['created_at', 'updated_at']
+
+    def total_owed_display(self, obj):
+        total = PurchaseInstallment.objects.filter(
+            purchase_invoice__supplier=obj, status__in=[PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE]
+        ).aggregate(total=Sum('amount'))['total'] or 0
+        return f'Gs. {total:,.0f}'.replace(',', '.')
+    total_owed_display.short_description = 'Deuda Pendiente'
+
+
 class InstallmentInline(admin.TabularInline):
     model = Installment
     extra = 0
@@ -215,6 +261,67 @@ class SaleAdmin(admin.ModelAdmin):
         obj.generate_installments()
         if is_new:
             obj.product.register_sale_exit(obj.quantity, reason=f'Venta #{obj.id}')
+
+
+class PurchaseInstallmentInline(admin.TabularInline):
+    model = PurchaseInstallment
+    extra = 0
+    fields = ['number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount']
+    readonly_fields = ['number', 'amount', 'due_date']
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+class PurchaseInvoiceItemInline(admin.TabularInline):
+    model = PurchaseInvoiceItem
+    extra = 1
+    fields = ['product', 'quantity', 'unit_cost']
+    autocomplete_fields = ['product']
+
+
+@admin.register(PurchaseInvoice)
+class PurchaseInvoiceAdmin(admin.ModelAdmin):
+    list_display = ['id', 'supplier', 'invoice_number', 'payment_type', 'installment_count', 'total_amount_display', 'purchase_date']
+    list_filter = ['payment_type']
+    search_fields = ['supplier__name', 'invoice_number']
+    autocomplete_fields = ['supplier']
+    date_hierarchy = 'purchase_date'
+    list_per_page = 25
+    inlines = [PurchaseInvoiceItemInline, PurchaseInstallmentInline]
+    fieldsets = (
+        (_('Compra'), {
+            'fields': ('supplier', 'invoice_number', 'purchase_date', 'notes')
+        }),
+        (_('Forma de Pago'), {
+            'fields': ('payment_type', 'installment_count'),
+            'description': 'Si el pago es en cuotas, se generarán automáticamente al guardar y NO se registra un gasto inmediato'
+        }),
+        (_('Metadata'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    readonly_fields = ['created_at', 'updated_at']
+
+    def total_amount_display(self, obj):
+        return f'Gs. {obj.total_amount:,.0f}'.replace(',', '.')
+    total_amount_display.short_description = 'Monto Total'
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        invoice = form.instance
+        if not change:
+            skip_expense = invoice.payment_type == PurchaseInvoice.PAYMENT_INSTALLMENTS
+            for item in invoice.items.select_related('product').all():
+                item.product.add_stock(
+                    item.quantity,
+                    note=f'Compra #{invoice.id} - {invoice.supplier.name}',
+                    skip_expense=skip_expense,
+                    supplier=invoice.supplier,
+                )
+        invoice.generate_installments()
 
 
 class OrderItemInline(admin.TabularInline):
@@ -281,6 +388,38 @@ class InstallmentAdmin(admin.ModelAdmin):
         qs = super().get_queryset(request)
         today = timezone.now().date()
         qs.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(status=Installment.STATUS_OVERDUE)
+        return qs
+
+
+@admin.register(PurchaseInstallment)
+class PurchaseInstallmentAdmin(admin.ModelAdmin):
+    list_display = ['supplier_name', 'purchase_invoice', 'number', 'amount_display', 'due_date', 'status', 'paid_date']
+    list_filter = ['status']
+    search_fields = ['purchase_invoice__supplier__name']
+    date_hierarchy = 'due_date'
+    list_per_page = 25
+    actions = ['mark_as_paid']
+
+    def supplier_name(self, obj):
+        return obj.purchase_invoice.supplier.name
+    supplier_name.short_description = 'Proveedor'
+    supplier_name.admin_order_field = 'purchase_invoice__supplier__name'
+
+    def amount_display(self, obj):
+        return f'Gs. {obj.amount:,.0f}'.replace(',', '.')
+    amount_display.short_description = 'Monto'
+    amount_display.admin_order_field = 'amount'
+
+    def mark_as_paid(self, request, queryset):
+        for installment in queryset:
+            installment.mark_as_paid()
+        self.message_user(request, f'{queryset.count()} cuota(s) marcada(s) como pagada(s).')
+    mark_as_paid.short_description = 'Marcar cuotas seleccionadas como pagadas'
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        today = timezone.now().date()
+        qs.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(status=PurchaseInstallment.STATUS_OVERDUE)
         return qs
 
 

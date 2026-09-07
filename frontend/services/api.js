@@ -2,17 +2,11 @@ import axios from 'axios'
 
 // Detectar URL de API basada en el entorno
 const getApiUrl = () => {
-  // En navegador (cliente), siempre usar localhost
-  if (typeof window !== 'undefined') {
-    return 'http://localhost:8000/api/v1'
-  }
-
-  // En servidor (Next.js SSR), usar el servicio de Docker
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL
   }
 
-  // Fallback
+  // Fallback para desarrollo local
   return 'http://localhost:8000/api/v1'
 }
 
@@ -180,8 +174,8 @@ export const productService = {
     await api.delete(`/products/${productId}/images/${imageId}/`)
   },
 
-  addStock: async (id, quantity, note = '') => {
-    const { data } = await api.post(`/products/${id}/add_stock/`, { quantity, note })
+  addStock: async (id, quantity, note = '', supplierId = null) => {
+    const { data } = await api.post(`/products/${id}/add_stock/`, { quantity, note, supplier: supplierId })
     return data
   },
 
@@ -364,8 +358,79 @@ export const installmentService = {
     const { data } = await api.post(`/installments/${id}/revert_payment/`)
     return data
   },
+  getDueReport: async (daysAhead = 7) => {
+    const { data } = await api.get('/installments/due_report/', { params: { days_ahead: daysAhead } })
+    return data
+  },
   getDashboard: async () => {
     const { data } = await api.get('/installments/dashboard/')
+    return data
+  },
+}
+
+export const supplierService = {
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/suppliers/', { params })
+    return data.results || data
+  },
+  getById: async (id) => {
+    const { data } = await api.get(`/suppliers/${id}/`)
+    return data
+  },
+  getPurchases: async (id) => {
+    const { data } = await api.get(`/suppliers/${id}/purchases/`)
+    return data
+  },
+  getProducts: async (id) => {
+    const { data } = await api.get(`/suppliers/${id}/products/`)
+    return data
+  },
+  create: async (payload) => {
+    const { data } = await api.post('/suppliers/', payload)
+    return data
+  },
+  update: async (id, payload) => {
+    const { data } = await api.patch(`/suppliers/${id}/`, payload)
+    return data
+  },
+}
+
+export const purchaseInvoiceService = {
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/purchase-invoices/', { params })
+    return data.results || data
+  },
+  getById: async (id) => {
+    const { data } = await api.get(`/purchase-invoices/${id}/`)
+    return data
+  },
+  create: async (payload) => {
+    const { data } = await api.post('/purchase-invoices/', payload)
+    return data
+  },
+}
+
+export const purchaseInstallmentService = {
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/purchase-installments/', { params })
+    return data.results || data
+  },
+  getById: async (id) => {
+    const { data } = await api.get(`/purchase-installments/${id}/`)
+    return data
+  },
+  markPaid: async (id, paidAmount) => {
+    const { data } = await api.post(`/purchase-installments/${id}/mark_paid/`, {
+      paid_amount: paidAmount,
+    })
+    return data
+  },
+  revertPayment: async (id) => {
+    const { data } = await api.post(`/purchase-installments/${id}/revert_payment/`)
+    return data
+  },
+  getDashboard: async () => {
+    const { data } = await api.get('/purchase-installments/dashboard/')
     return data
   },
 }
@@ -384,6 +449,10 @@ export const auditService = {
 export const reportService = {
   get: async (params = {}) => {
     const { data } = await api.get('/reports/', { params })
+    return data
+  },
+  getHomeDashboard: async () => {
+    const { data } = await api.get('/home-dashboard/')
     return data
   },
 }
