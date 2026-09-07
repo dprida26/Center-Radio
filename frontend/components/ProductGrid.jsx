@@ -3,11 +3,15 @@
 import { useEffect, useState, useMemo } from 'react'
 import { productService } from '@/services/api'
 import ProductCard from './ProductCard'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+
+const PAGE_SIZE = 12
 
 export default function ProductGrid({ searchQuery = '', filters = {} }) {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -36,6 +40,22 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
       product.category_name.toLowerCase().includes(query)
     )
   }, [products, searchQuery])
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, filters])
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredProducts.slice(start, start + PAGE_SIZE)
+  }, [filteredProducts, currentPage])
+
+  const goToPage = (p) => {
+    setPage(p)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   if (loading) {
     return (
@@ -76,13 +96,49 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
   return (
     <>
       <p className="text-sm text-gray-600 mb-6">
-        Mostrando <span className="font-bold text-gray-900">{filteredProducts.length}</span> de <span className="font-bold text-gray-900">{products.length}</span> productos
+        Mostrando <span className="font-bold text-gray-900">{paginatedProducts.length}</span> de <span className="font-bold text-gray-900">{filteredProducts.length}</span> productos
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredProducts.map((product) => (
+        {paginatedProducts.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-10">
+          <button
+            onClick={() => goToPage(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
+            aria-label="Página anterior"
+          >
+            <ChevronLeft size={18} />
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+            <button
+              key={p}
+              onClick={() => goToPage(p)}
+              className={`w-9 h-9 rounded-lg text-sm font-semibold transition ${
+                p === currentPage
+                  ? 'bg-primary text-graphite-dark shadow-md'
+                  : 'border border-gray-200 text-gray-600 hover:bg-white hover:shadow-sm'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+
+          <button
+            onClick={() => goToPage(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
+            aria-label="Página siguiente"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
     </>
   )
 }

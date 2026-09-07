@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search, ShoppingCart, Menu, Phone, Mail, Lock } from 'lucide-react'
+import { Search, ShoppingCart, Menu, Phone, Mail } from 'lucide-react'
 import { FaWhatsapp, FaFacebook, FaInstagram, FaTwitter, FaYoutube } from 'react-icons/fa'
 import { useState } from 'react'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
@@ -113,13 +113,6 @@ export default function Header() {
                 </a>
               )}
             </div>
-            <Link
-              href="/panel/login"
-              className="flex items-center gap-1.5 text-slate-400 hover:text-primary transition text-xs border-l border-white/10 pl-4"
-            >
-              <Lock size={13} />
-              <span className="hidden sm:inline">Administración</span>
-            </Link>
           </div>
         </div>
       </div>
