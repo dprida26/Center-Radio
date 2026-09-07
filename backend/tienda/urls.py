@@ -12,10 +12,10 @@ urlpatterns = [
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
-# Servimos /media/ siempre (incluso con DEBUG=False): son archivos públicos
-# (logo, imágenes de productos) y este entorno no tiene un servidor de
-# estáticos/CDN por delante de gunicorn. static() de Django no sirve para
-# esto porque internamente se desactiva a sí mismo cuando DEBUG=False.
-urlpatterns += [
-    re_path(r'^media/(?P<path>.*)$', serve_static, {'document_root': settings.MEDIA_ROOT}),
-]
+# Servimos /media/ desde el filesystem local solo cuando no hay un storage
+# externo (Cloudflare R2) configurado. Con R2, las imágenes se sirven
+# directamente desde su URL pública y este bloque no aplica.
+if hasattr(settings, 'MEDIA_ROOT'):
+    urlpatterns += [
+        re_path(r'^media/(?P<path>.*)$', serve_static, {'document_root': settings.MEDIA_ROOT}),
+    ]
