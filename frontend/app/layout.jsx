@@ -4,8 +4,8 @@ import { CartProvider } from '@/context/CartContext'
 import { AuthProvider } from '@/context/AuthContext'
 
 export const metadata = {
-  title: 'Tienda Electrodomésticos',
-  description: 'La mejor tienda online de electrodomésticos',
+  title: 'Center-Radio',
+  description: 'Center-Radio - Tienda online de electrodomésticos',
 }
 
 export default function RootLayout({ children }) {
