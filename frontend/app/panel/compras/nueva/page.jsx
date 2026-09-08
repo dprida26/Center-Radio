@@ -117,20 +117,21 @@ export default function NuevaCompraPage() {
           <ProductPicker onSelect={addItem} supplier={supplier} />
 
           {items.length > 0 && (
-            <table className="w-full text-sm mt-4">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm mt-4 min-w-[560px]">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
-                  <th className="pb-2 font-medium">Producto</th>
-                  <th className="pb-2 font-medium w-24">Cantidad</th>
-                  <th className="pb-2 font-medium w-36">Costo Unit.</th>
-                  <th className="pb-2 font-medium text-right">Subtotal</th>
+                  <th className="pb-2 font-medium whitespace-nowrap">Producto</th>
+                  <th className="pb-2 font-medium w-24 whitespace-nowrap">Cantidad</th>
+                  <th className="pb-2 font-medium w-36 whitespace-nowrap">Costo Unit.</th>
+                  <th className="pb-2 font-medium text-right whitespace-nowrap">Subtotal</th>
                   <th className="pb-2"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((it) => (
                   <tr key={it.product.id} className="border-b last:border-0">
-                    <td className="py-2 text-gray-800">{it.product.name}</td>
+                    <td className="py-2 text-gray-800 whitespace-nowrap">{it.product.name}</td>
                     <td className="py-2">
                       <input
                         type="number"
@@ -161,6 +162,7 @@ export default function NuevaCompraPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

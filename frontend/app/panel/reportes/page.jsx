@@ -153,12 +153,12 @@ export default function ReportesPage() {
         <FiltersBar filters={filters} setFilters={setFilters} categories={categories} />
       </div>
 
-      <div className="flex gap-1 border-b border-gray-200 print:hidden">
+      <div className="flex gap-1 border-b border-gray-200 print:hidden overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap ${
               tab === t.key
                 ? 'border-blue-600 text-blue-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -602,8 +602,8 @@ function CollectionBox({ label, value, className }) {
 
 function MiniStat({ label, value, small }) {
   return (
-    <div>
-      <p className={small ? 'text-xs text-gray-600' : 'text-xl font-bold text-gray-900'}>{value}</p>
+    <div className="min-w-0">
+      <p className={`break-words ${small ? 'text-xs text-gray-600' : 'text-xl font-bold text-gray-900'}`}>{value}</p>
       <p className="text-xs text-gray-500 mt-1">{label}</p>
     </div>
   )

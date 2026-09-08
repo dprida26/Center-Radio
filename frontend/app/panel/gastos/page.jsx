@@ -153,21 +153,21 @@ export default function GastosPage() {
 
                 {!isCollapsed && (
                   <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[640px]">
                     <thead>
                       <tr className="text-left text-gray-500 border-t border-gray-100">
-                        <th className="px-4 py-2.5 font-medium">Fecha</th>
-                        <th className="px-4 py-2.5 font-medium">Categoría</th>
-                        <th className="px-4 py-2.5 font-medium">Descripción</th>
-                        <th className="px-4 py-2.5 font-medium text-right">Monto</th>
-                        <th className="px-4 py-2.5 font-medium text-right">Acciones</th>
+                        <th className="px-4 py-2.5 font-medium whitespace-nowrap">Fecha</th>
+                        <th className="px-4 py-2.5 font-medium whitespace-nowrap">Categoría</th>
+                        <th className="px-4 py-2.5 font-medium whitespace-nowrap">Descripción</th>
+                        <th className="px-4 py-2.5 font-medium text-right whitespace-nowrap">Monto</th>
+                        <th className="px-4 py-2.5 font-medium text-right whitespace-nowrap">Acciones</th>
                       </tr>
                     </thead>
                     <tbody>
                       {group.items.map((exp) => (
                         <tr key={exp.id} className="border-t border-gray-100">
-                          <td className="px-4 py-3 text-gray-600">{exp.expense_date}</td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{exp.expense_date}</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
                             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700">
                               {exp.category_display}
                             </span>
@@ -182,9 +182,9 @@ export default function GastosPage() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatGs(exp.amount)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-gray-900 whitespace-nowrap">{formatGs(exp.amount)}</td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center justify-end gap-3">
+                            <div className="flex items-center justify-end gap-3 whitespace-nowrap">
                               <button
                                 onClick={() => { setEditingExpense(exp); setModalOpen(true) }}
                                 className="text-gray-400 hover:text-blue-600"

@@ -149,24 +149,26 @@ export default function ProveedorDetallePage() {
                   <p className="text-xl font-bold text-gray-900">{totalStock}</p>
                 </div>
               </div>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[360px]">
                 <thead>
                   <tr className="text-left text-gray-500 border-b">
-                    <th className="pb-2 font-medium">Producto</th>
-                    <th className="pb-2 font-medium text-right">Stock</th>
-                    <th className="pb-2 font-medium text-right">Precio</th>
+                    <th className="pb-2 pr-3 font-medium whitespace-nowrap">Producto</th>
+                    <th className="pb-2 pr-3 font-medium text-right whitespace-nowrap">Stock</th>
+                    <th className="pb-2 font-medium text-right whitespace-nowrap">Precio</th>
                   </tr>
                 </thead>
                 <tbody>
                   {products.map((p) => (
                     <tr key={p.id} className="border-b last:border-0">
-                      <td className="py-2 text-gray-800">{p.name}</td>
-                      <td className="py-2 text-right text-gray-600">{p.stock}</td>
-                      <td className="py-2 text-right text-gray-600">{formatGs(p.price)}</td>
+                      <td className="py-2 pr-3 text-gray-800 whitespace-nowrap">{p.name}</td>
+                      <td className="py-2 pr-3 text-right text-gray-600 whitespace-nowrap">{p.stock}</td>
+                      <td className="py-2 text-right text-gray-600 whitespace-nowrap">{formatGs(p.price)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )
         )}
@@ -436,36 +438,39 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
 
       {open && (
         <div className="mt-3">
-          <table className="w-full text-sm mb-1">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm mb-1 min-w-[420px]">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2 font-medium">Producto</th>
-                <th className="pb-2 font-medium text-right">Cant.</th>
-                <th className="pb-2 font-medium text-right">Costo Unit.</th>
-                <th className="pb-2 font-medium text-right">Subtotal</th>
+                <th className="pb-2 font-medium whitespace-nowrap">Producto</th>
+                <th className="pb-2 font-medium text-right whitespace-nowrap">Cant.</th>
+                <th className="pb-2 font-medium text-right whitespace-nowrap">Costo Unit.</th>
+                <th className="pb-2 font-medium text-right whitespace-nowrap">Subtotal</th>
               </tr>
             </thead>
             <tbody>
               {purchase.items.map((item) => (
                 <tr key={item.id} className="border-b last:border-0">
-                  <td className="py-2 text-gray-800">{item.product_name}</td>
-                  <td className="py-2 text-right text-gray-600">{item.quantity}</td>
-                  <td className="py-2 text-right text-gray-600">{formatGs(item.unit_cost)}</td>
-                  <td className="py-2 text-right text-gray-600">{formatGs(item.subtotal)}</td>
+                  <td className="py-2 text-gray-800 whitespace-nowrap">{item.product_name}</td>
+                  <td className="py-2 text-right text-gray-600 whitespace-nowrap">{item.quantity}</td>
+                  <td className="py-2 text-right text-gray-600 whitespace-nowrap">{formatGs(item.unit_cost)}</td>
+                  <td className="py-2 text-right text-gray-600 whitespace-nowrap">{formatGs(item.subtotal)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
 
           {!isCash && purchase.purchase_installments?.length > 0 && (
-            <table className="w-full text-sm mt-3">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm mt-3 min-w-[480px]">
               <thead>
                 <tr className="text-left text-gray-500 border-b">
-                  <th className="pb-2 font-medium">#</th>
-                  <th className="pb-2 font-medium">Vencimiento</th>
-                  <th className="pb-2 font-medium text-right">Monto</th>
-                  <th className="pb-2 font-medium text-center">Estado</th>
-                  <th className="pb-2 font-medium text-right">Acción</th>
+                  <th className="pb-2 pr-3 font-medium whitespace-nowrap">#</th>
+                  <th className="pb-2 pr-3 font-medium whitespace-nowrap">Vencimiento</th>
+                  <th className="pb-2 pr-3 font-medium text-right whitespace-nowrap">Monto</th>
+                  <th className="pb-2 pr-3 font-medium text-center whitespace-nowrap">Estado</th>
+                  <th className="pb-2 font-medium text-right whitespace-nowrap">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -474,15 +479,15 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
                   const isBusy = busyId === inst.id
                   return (
                     <tr key={inst.id} className="border-b last:border-0">
-                      <td className="py-2">{inst.number}</td>
-                      <td className="py-2">{inst.due_date}</td>
-                      <td className="py-2 text-right">{formatGs(inst.amount)}</td>
-                      <td className="py-2 text-center">
+                      <td className="py-2 pr-3 whitespace-nowrap">{inst.number}</td>
+                      <td className="py-2 pr-3 whitespace-nowrap">{inst.due_date}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">{formatGs(inst.amount)}</td>
+                      <td className="py-2 pr-3 text-center whitespace-nowrap">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusInfo.className}`}>
                           {statusInfo.label}
                         </span>
                       </td>
-                      <td className="py-2 text-right">
+                      <td className="py-2 text-right whitespace-nowrap">
                         {inst.status === 'PAID' ? (
                           <div className="flex items-center justify-end gap-3">
                             <Link
@@ -519,6 +524,7 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}

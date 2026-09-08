@@ -62,32 +62,32 @@ export default function ProveedoresPage() {
           <p className="text-gray-400 text-sm p-6 text-center italic">No se encontraron proveedores.</p>
         ) : (
           <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[760px]">
             <thead className="bg-gray-50">
               <tr className="text-left text-gray-500">
-                <th className="px-5 py-3 font-medium">Nombre</th>
-                <th className="px-5 py-3 font-medium">Contacto</th>
-                <th className="px-5 py-3 font-medium">Teléfono</th>
-                <th className="px-5 py-3 font-medium text-right">Deuda</th>
-                <th className="px-5 py-3 font-medium text-right">Atraso</th>
-                <th className="px-5 py-3 font-medium text-right">Productos</th>
-                <th className="px-5 py-3 font-medium text-right">Stock</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Nombre</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Contacto</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Teléfono</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Deuda</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Atraso</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Productos</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Stock</th>
               </tr>
             </thead>
             <tbody>
               {suppliers.map((s) => (
                 <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <Link href={`/panel/proveedores/${s.id}`} className="font-medium text-blue-600 hover:underline">
                       {s.name}
                     </Link>
                   </td>
-                  <td className="px-5 py-3 text-gray-600">{s.contact_name || '—'}</td>
-                  <td className="px-5 py-3 text-gray-600">{s.phone || '—'}</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{s.contact_name || '—'}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{s.phone || '—'}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
                     {parseFloat(s.total_owed) > 0 ? formatGs(s.total_owed) : '—'}
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
                     {s.overdue_count > 0 ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
                         {s.overdue_count}
@@ -96,8 +96,8 @@ export default function ProveedoresPage() {
                       <span className="text-gray-300">—</span>
                     )}
                   </td>
-                  <td className="px-5 py-3 text-right text-gray-600">{s.product_count}</td>
-                  <td className="px-5 py-3 text-right text-gray-600">{s.total_stock}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{s.product_count}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{s.total_stock}</td>
                 </tr>
               ))}
             </tbody>

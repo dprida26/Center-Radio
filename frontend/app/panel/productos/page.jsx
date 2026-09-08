@@ -104,27 +104,27 @@ export default function ProductosPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-gray-50">
               <tr className="text-left text-gray-500">
-                <th className="px-5 py-3 font-medium">Producto</th>
-                <th className="px-5 py-3 font-medium">Categoría</th>
-                <th className="px-5 py-3 font-medium text-right">Precio</th>
-                <th className="px-5 py-3 font-medium text-right">Stock</th>
-                <th className="px-5 py-3 font-medium text-center">Estado</th>
-                <th className="px-5 py-3 font-medium text-right">Acciones</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Producto</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Categoría</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Precio</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Stock</th>
+                <th className="px-5 py-3 font-medium text-center whitespace-nowrap">Estado</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <p className="font-medium text-gray-900">{p.name}</p>
                     <p className="text-xs text-gray-500">{p.brand} {p.model}</p>
                   </td>
-                  <td className="px-5 py-3 text-gray-600">{p.category_name}</td>
-                  <td className="px-5 py-3 text-right">{formatGs(p.price)}</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{p.category_name}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">{formatGs(p.price)}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
                     <span
                       className={
                         p.stock === 0

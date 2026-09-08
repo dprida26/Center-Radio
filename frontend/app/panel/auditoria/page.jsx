@@ -151,14 +151,14 @@ export default function AuditoriaPage() {
         <>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[820px]">
               <thead className="bg-gray-50">
                 <tr className="text-left text-gray-500">
-                  <th className="px-4 py-3 font-medium">Fecha</th>
-                  <th className="px-4 py-3 font-medium">Usuario</th>
-                  <th className="px-4 py-3 font-medium">Acción</th>
-                  <th className="px-4 py-3 font-medium">Módulo</th>
-                  <th className="px-4 py-3 font-medium">Detalle</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap">Fecha</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap">Usuario</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap">Acción</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap">Módulo</th>
+                  <th className="px-4 py-3 font-medium whitespace-nowrap">Detalle</th>
                 </tr>
               </thead>
               <tbody>

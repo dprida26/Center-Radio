@@ -59,30 +59,30 @@ export default function ClientesPage() {
           <p className="text-gray-400 text-sm p-6 text-center italic">No se encontraron clientes.</p>
         ) : (
           <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-gray-50">
               <tr className="text-left text-gray-500">
-                <th className="px-5 py-3 font-medium">Nombre</th>
-                <th className="px-5 py-3 font-medium">CI/RUC</th>
-                <th className="px-5 py-3 font-medium">Teléfono</th>
-                <th className="px-5 py-3 font-medium text-right">Deuda</th>
-                <th className="px-5 py-3 font-medium text-right">Atraso</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Nombre</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">CI/RUC</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Teléfono</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Deuda</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Atraso</th>
               </tr>
             </thead>
             <tbody>
               {customers.map((c) => (
                 <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-5 py-3">
+                  <td className="px-5 py-3 whitespace-nowrap">
                     <Link href={`/panel/clientes/${c.id}`} className="font-medium text-blue-600 hover:underline">
                       {c.full_name}
                     </Link>
                   </td>
-                  <td className="px-5 py-3 text-gray-600">{c.document_number}</td>
-                  <td className="px-5 py-3 text-gray-600">{c.phone || '—'}</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{c.document_number}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{c.phone || '—'}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
                     {parseFloat(c.total_debt) > 0 ? formatGs(c.total_debt) : '—'}
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
                     {c.overdue_count > 0 ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
                         {c.overdue_count}
