@@ -1,0 +1,2042 @@
+[
+{
+  "model": "api.category",
+  "pk": 1,
+  "fields": {
+    "name": "Refrigeradores",
+    "description": "Refrigeradores y congeladores",
+    "created_at": "2026-08-29T01:45:25.466Z",
+    "updated_at": "2026-08-29T01:45:25.466Z"
+  }
+},
+{
+  "model": "api.category",
+  "pk": 2,
+  "fields": {
+    "name": "Lavadoras",
+    "description": "Lavadoras automáticas",
+    "created_at": "2026-08-29T01:45:25.474Z",
+    "updated_at": "2026-08-29T01:45:25.475Z"
+  }
+},
+{
+  "model": "api.category",
+  "pk": 3,
+  "fields": {
+    "name": "Microondas",
+    "description": "Hornos microondas",
+    "created_at": "2026-08-29T01:45:25.481Z",
+    "updated_at": "2026-08-29T01:45:25.481Z"
+  }
+},
+{
+  "model": "api.category",
+  "pk": 4,
+  "fields": {
+    "name": "Televisores",
+    "description": "Smart TVs y televisores",
+    "created_at": "2026-08-29T01:45:25.486Z",
+    "updated_at": "2026-08-29T01:45:25.486Z"
+  }
+},
+{
+  "model": "api.category",
+  "pk": 5,
+  "fields": {
+    "name": "Otros",
+    "description": "",
+    "created_at": "2026-09-05T02:11:15.244Z",
+    "updated_at": "2026-09-05T02:11:15.244Z"
+  }
+},
+{
+  "model": "api.supplier",
+  "pk": 3,
+  "fields": {
+    "name": "NGO",
+    "contact_name": "Felipe",
+    "phone": "995864455",
+    "email": "felipe@ngo.com.py",
+    "address": "",
+    "ruc": "8005465-5",
+    "notes": "",
+    "is_active": true,
+    "created_at": "2026-09-07T14:40:14.046Z",
+    "updated_at": "2026-09-07T14:40:14.046Z"
+  }
+},
+{
+  "model": "api.supplier",
+  "pk": 4,
+  "fields": {
+    "name": "Chacomer",
+    "contact_name": "Sergio",
+    "phone": "998954865",
+    "email": "sergio@chacomer.com.py",
+    "address": "",
+    "ruc": "8756549-9",
+    "notes": "",
+    "is_active": true,
+    "created_at": "2026-09-07T14:46:55.493Z",
+    "updated_at": "2026-09-07T14:46:55.493Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 1,
+  "fields": {
+    "name": "Refrigerador Samsung 600L",
+    "description": "Producto de Samsung, modelo RF28",
+    "price": "4500000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 1,
+    "image": "",
+    "brand": "Samsung",
+    "model": "RF28",
+    "stock": 4,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "2,3,4,5,6,7,8,9,10,",
+    "installment_interest_rate": "15.00",
+    "created_at": "2026-08-29T01:45:25.493Z",
+    "updated_at": "2026-09-04T18:42:23.392Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 2,
+  "fields": {
+    "name": "Refrigerador LG 500L",
+    "description": "Producto de LG, modelo GT50",
+    "price": "3800000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 1,
+    "image": "",
+    "brand": "LG",
+    "model": "GT50",
+    "stock": 2,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.503Z",
+    "updated_at": "2026-09-04T18:40:48.116Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 3,
+  "fields": {
+    "name": "Lavadora LG 10kg",
+    "description": "Producto de LG, modelo WF10",
+    "price": "2900000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 2,
+    "image": "",
+    "brand": "LG",
+    "model": "WF10",
+    "stock": 7,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.509Z",
+    "updated_at": "2026-09-04T18:39:07.409Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 4,
+  "fields": {
+    "name": "Lavadora Whirlpool 8kg",
+    "description": "Producto de Whirlpool, modelo WF8",
+    "price": "2200000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 2,
+    "image": "",
+    "brand": "Whirlpool",
+    "model": "WF8",
+    "stock": 5,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.515Z",
+    "updated_at": "2026-09-04T18:35:34.113Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 5,
+  "fields": {
+    "name": "Microondas Samsung 30L",
+    "description": "Producto de Samsung, modelo MS30",
+    "price": "1100000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 3,
+    "image": "",
+    "brand": "Samsung",
+    "model": "MS30",
+    "stock": 10,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.520Z",
+    "updated_at": "2026-09-04T18:35:17.738Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 6,
+  "fields": {
+    "name": "Microondas LG 25L",
+    "description": "Producto de LG, modelo MS25",
+    "price": "850000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 3,
+    "image": "",
+    "brand": "LG",
+    "model": "MS25",
+    "stock": 7,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.527Z",
+    "updated_at": "2026-09-04T18:35:03.089Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 7,
+  "fields": {
+    "name": "Smart TV 55 pulgadas",
+    "description": "Producto de Samsung, modelo UE55",
+    "price": "3200000.00",
+    "cost_price": "0.00",
+    "usual_supplier": null,
+    "category": 4,
+    "image": "",
+    "brand": "Samsung",
+    "model": "UE55",
+    "stock": 1,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.533Z",
+    "updated_at": "2026-09-04T18:30:29.672Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 8,
+  "fields": {
+    "name": "Smart TV 43 pulgadas",
+    "description": "Producto de LG, modelo UP43",
+    "price": "2100000.00",
+    "cost_price": "0.00",
+    "usual_supplier": 3,
+    "category": 4,
+    "image": "products/TV_43-1..jpg",
+    "brand": "LG",
+    "model": "UP43",
+    "stock": 2,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "0.00",
+    "created_at": "2026-08-29T01:45:25.540Z",
+    "updated_at": "2026-09-05T02:07:11.677Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 9,
+  "fields": {
+    "name": "Licuadora Oster",
+    "description": "Licuadora de gran rendimiento",
+    "price": "175000.00",
+    "cost_price": "100000.00",
+    "usual_supplier": null,
+    "category": 5,
+    "image": "",
+    "brand": "Oster",
+    "model": "OS45B",
+    "stock": 4,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "2,3,4,5,6",
+    "installment_interest_rate": "15.00",
+    "created_at": "2026-09-05T02:10:57.333Z",
+    "updated_at": "2026-09-07T20:43:54.341Z"
+  }
+},
+{
+  "model": "api.product",
+  "pk": 14,
+  "fields": {
+    "name": "Tostadora",
+    "description": "Para Hacer tostadas",
+    "price": "80000.00",
+    "cost_price": "60000.00",
+    "usual_supplier": 3,
+    "category": 5,
+    "image": "",
+    "brand": "Tokio",
+    "model": "8445",
+    "stock": 1,
+    "min_stock": 3,
+    "is_active": true,
+    "installment_options": "3,6,12",
+    "installment_interest_rate": "15.00",
+    "created_at": "2026-09-07T14:53:01.303Z",
+    "updated_at": "2026-09-07T15:37:11.698Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 8,
+  "fields": {
+    "product": 8,
+    "image": "products/TV_43_NAaAoWs.jpg",
+    "order": 0,
+    "created_at": "2026-09-04T18:26:09.446Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 9,
+  "fields": {
+    "product": 8,
+    "image": "products/TV_43-1._S4RWFtJ.jpg",
+    "order": 1,
+    "created_at": "2026-09-04T18:26:09.494Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 12,
+  "fields": {
+    "product": 7,
+    "image": "products/TV_55.jpg",
+    "order": 0,
+    "created_at": "2026-09-04T18:30:29.779Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 13,
+  "fields": {
+    "product": 7,
+    "image": "products/TV_55-2.jpg",
+    "order": 1,
+    "created_at": "2026-09-04T18:30:29.819Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 14,
+  "fields": {
+    "product": 7,
+    "image": "products/TV_55-3.jpg",
+    "order": 2,
+    "created_at": "2026-09-04T18:30:29.863Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 15,
+  "fields": {
+    "product": 6,
+    "image": "products/Microonda_25L.png",
+    "order": 0,
+    "created_at": "2026-09-04T18:35:03.195Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 16,
+  "fields": {
+    "product": 5,
+    "image": "products/MIcro_Samsung.jpeg",
+    "order": 0,
+    "created_at": "2026-09-04T18:35:17.820Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 17,
+  "fields": {
+    "product": 4,
+    "image": "products/Lavarropas_Whispool.jpg",
+    "order": 0,
+    "created_at": "2026-09-04T18:35:34.190Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 18,
+  "fields": {
+    "product": 3,
+    "image": "products/Lavarropas_LG.webp",
+    "order": 0,
+    "created_at": "2026-09-04T18:39:07.504Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 19,
+  "fields": {
+    "product": 2,
+    "image": "products/Heladera_500_L.webp",
+    "order": 0,
+    "created_at": "2026-09-04T18:40:48.240Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 20,
+  "fields": {
+    "product": 2,
+    "image": "products/Heladera_500_L-1.webp",
+    "order": 1,
+    "created_at": "2026-09-04T18:40:48.281Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 21,
+  "fields": {
+    "product": 1,
+    "image": "products/Hela_1.png",
+    "order": 0,
+    "created_at": "2026-09-04T18:42:23.571Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 22,
+  "fields": {
+    "product": 1,
+    "image": "products/Hela_2.png",
+    "order": 1,
+    "created_at": "2026-09-04T18:42:23.621Z"
+  }
+},
+{
+  "model": "api.productimage",
+  "pk": 23,
+  "fields": {
+    "product": 9,
+    "image": "products/Licuadora.jpeg",
+    "order": 0,
+    "created_at": "2026-09-07T20:43:55.835Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 7,
+  "fields": {
+    "product": 9,
+    "movement_type": "IN",
+    "quantity": 2,
+    "reason": "Ingreso de mercadería",
+    "resulting_stock": 7,
+    "created_at": "2026-09-05T02:58:37.122Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 8,
+  "fields": {
+    "product": 9,
+    "movement_type": "OUT",
+    "quantity": -1,
+    "reason": "Venta - Pedido #7",
+    "resulting_stock": 6,
+    "created_at": "2026-09-05T02:59:45.979Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 9,
+  "fields": {
+    "product": 9,
+    "movement_type": "ADJUSTMENT",
+    "quantity": 2,
+    "reason": "Devolución por Rotura",
+    "resulting_stock": 8,
+    "created_at": "2026-09-05T03:00:50.940Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 10,
+  "fields": {
+    "product": 9,
+    "movement_type": "ADJUSTMENT",
+    "quantity": -4,
+    "reason": "Devolución al proveedor",
+    "resulting_stock": 4,
+    "created_at": "2026-09-05T03:01:37.272Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 11,
+  "fields": {
+    "product": 8,
+    "movement_type": "OUT",
+    "quantity": -1,
+    "reason": "Venta - Pedido #8",
+    "resulting_stock": 1,
+    "created_at": "2026-09-05T13:03:14.578Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 12,
+  "fields": {
+    "product": 6,
+    "movement_type": "OUT",
+    "quantity": -1,
+    "reason": "Venta - Pedido #8",
+    "resulting_stock": 7,
+    "created_at": "2026-09-05T13:03:14.630Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 18,
+  "fields": {
+    "product": 8,
+    "movement_type": "IN",
+    "quantity": 1,
+    "reason": "Compra #5 - NGO (Proveedor: NGO)",
+    "resulting_stock": 2,
+    "created_at": "2026-09-07T14:54:49.755Z"
+  }
+},
+{
+  "model": "api.stockmovement",
+  "pk": 19,
+  "fields": {
+    "product": 14,
+    "movement_type": "IN",
+    "quantity": 1,
+    "reason": "Compra #5 - NGO (Proveedor: NGO)",
+    "resulting_stock": 1,
+    "created_at": "2026-09-07T14:54:49.760Z"
+  }
+},
+{
+  "model": "api.promotion",
+  "pk": 1,
+  "fields": {
+    "name": "Promoción Verano 2026",
+    "description": "20% de descuento en electrodomésticos seleccionados",
+    "discount_percent": "20.00",
+    "start_date": "2026-08-29T01:45:25Z",
+    "end_date": "2026-09-28T01:45:25Z",
+    "is_active": true,
+    "interest_percent": "0.00",
+    "created_at": "2026-08-29T01:45:25.550Z",
+    "updated_at": "2026-09-01T19:34:56.817Z",
+    "products": [
+      2,
+      1
+    ]
+  }
+},
+{
+  "model": "api.promotion",
+  "pk": 2,
+  "fields": {
+    "name": "Descuento en Refrigeradores",
+    "description": "25% de descuento en todos los refrigeradores",
+    "discount_percent": "25.00",
+    "start_date": "2026-08-29T01:45:25Z",
+    "end_date": "2026-09-13T01:45:25Z",
+    "is_active": true,
+    "interest_percent": "0.00",
+    "created_at": "2026-08-29T01:45:25.556Z",
+    "updated_at": "2026-09-03T14:02:16.345Z",
+    "products": [
+      2,
+      1
+    ]
+  }
+},
+{
+  "model": "api.companyinfo",
+  "pk": 1,
+  "fields": {
+    "name": "Center Radio Electrodomésticos",
+    "legal_name": "",
+    "ruc": "",
+    "business_hours": "Lunes a Sábado: 07:00 - 18:00\r\nDomingos: 07:00 - 12:00",
+    "phone": "+595 982725140",
+    "whatsapp": "982725140",
+    "email": "info@tienda.com",
+    "address": "Tte. Nicasio Insaurralde, Guarambaré.",
+    "facebook_url": "https://facebook.com/tiendaelectro",
+    "instagram_url": "https://instagram.com/tiendaelectro",
+    "twitter_url": "https://twitter.com/tiendaelectro",
+    "youtube_url": "https://youtube.com/@tiendaelectro",
+    "linkedin_url": "https://linkedin.com/company/tiendaelectro",
+    "about_text": "Somos una tienda de electrodomésticos con más de 30 años de experiencia. Ofrecemos los mejores productos con garantía y servicio al cliente de calidad.",
+    "logo": "company/Logo_Center_circular.png",
+    "updated_at": "2026-09-05T00:56:42.437Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 2,
+  "fields": {
+    "full_name": "Juan Pérez",
+    "document_number": "4123456",
+    "phone": "0981123456",
+    "email": "juan.perez@example.com",
+    "address": "",
+    "created_at": "2026-09-03T14:28:30.235Z",
+    "updated_at": "2026-09-03T14:28:30.235Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 3,
+  "fields": {
+    "full_name": "María González",
+    "document_number": "3987654",
+    "phone": "0982234567",
+    "email": "maria.gonzalez@example.com",
+    "address": "",
+    "created_at": "2026-09-03T14:28:30.246Z",
+    "updated_at": "2026-09-03T14:28:30.246Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 4,
+  "fields": {
+    "full_name": "Carlos Rodríguez",
+    "document_number": "2765432",
+    "phone": "0983345678",
+    "email": "carlos.rodriguez@example.com",
+    "address": "",
+    "created_at": "2026-09-03T14:28:30.252Z",
+    "updated_at": "2026-09-03T14:28:30.252Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 5,
+  "fields": {
+    "full_name": "Ana Martínez",
+    "document_number": "5321098",
+    "phone": "0984456789",
+    "email": "ana.martinez@example.com",
+    "address": "",
+    "created_at": "2026-09-03T14:28:30.258Z",
+    "updated_at": "2026-09-03T14:28:30.258Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 6,
+  "fields": {
+    "full_name": "Roberto Sosa",
+    "document_number": "1654321",
+    "phone": "0985567890",
+    "email": "roberto.sosa@example.com",
+    "address": "",
+    "created_at": "2026-09-03T14:28:30.264Z",
+    "updated_at": "2026-09-03T14:28:30.264Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 7,
+  "fields": {
+    "full_name": "Laura Benítez",
+    "document_number": "4890123",
+    "phone": "0986678901",
+    "email": "laura.benitez@example.com",
+    "address": "",
+    "created_at": "2026-09-03T14:28:30.271Z",
+    "updated_at": "2026-09-03T14:28:30.271Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 9,
+  "fields": {
+    "full_name": "Dennis Vazquez",
+    "document_number": "8872938",
+    "phone": "0992883964",
+    "email": "dennis.vazquez26@gmail.com",
+    "address": "Barrio Cerrado Ytororo Country Club, Ypane",
+    "created_at": "2026-09-03T21:01:21.976Z",
+    "updated_at": "2026-09-03T21:01:21.976Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 10,
+  "fields": {
+    "full_name": "Elizeth Martinez",
+    "document_number": "9105235",
+    "phone": "991806506",
+    "email": "Elizeth.martinez02@gmail.com",
+    "address": "Ypane",
+    "created_at": "2026-09-05T00:19:57.954Z",
+    "updated_at": "2026-09-05T00:19:57.955Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 12,
+  "fields": {
+    "full_name": "Elisa",
+    "document_number": "PEDIDO-7",
+    "phone": "993856954",
+    "email": "",
+    "address": "Guarambare",
+    "created_at": "2026-09-05T02:59:45.957Z",
+    "updated_at": "2026-09-05T02:59:45.957Z"
+  }
+},
+{
+  "model": "api.customer",
+  "pk": 13,
+  "fields": {
+    "full_name": "Hugo",
+    "document_number": "PEDIDO-8",
+    "phone": "993856984",
+    "email": "",
+    "address": "Guarambare",
+    "created_at": "2026-09-05T13:03:14.493Z",
+    "updated_at": "2026-09-05T13:03:14.493Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 2,
+  "fields": {
+    "customer": 2,
+    "product": 8,
+    "quantity": 1,
+    "unit_price": "2100000.00",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "interest_rate": "0.00",
+    "sale_date": "2026-07-05",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.279Z",
+    "updated_at": "2026-09-03T14:28:30.279Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 3,
+  "fields": {
+    "customer": 3,
+    "product": 7,
+    "quantity": 1,
+    "unit_price": "3200000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "interest_rate": "15.00",
+    "sale_date": "2026-04-06",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.317Z",
+    "updated_at": "2026-09-03T14:28:30.317Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 4,
+  "fields": {
+    "customer": 4,
+    "product": 6,
+    "quantity": 1,
+    "unit_price": "850000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 3,
+    "interest_rate": "10.00",
+    "sale_date": "2026-08-14",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.357Z",
+    "updated_at": "2026-09-03T14:28:30.357Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 5,
+  "fields": {
+    "customer": 5,
+    "product": 5,
+    "quantity": 1,
+    "unit_price": "1100000.00",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "interest_rate": "0.00",
+    "sale_date": "2026-08-24",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.381Z",
+    "updated_at": "2026-09-03T14:28:30.381Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 6,
+  "fields": {
+    "customer": 6,
+    "product": 4,
+    "quantity": 1,
+    "unit_price": "2200000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 12,
+    "interest_rate": "20.00",
+    "sale_date": "2026-02-15",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.393Z",
+    "updated_at": "2026-09-03T14:28:30.393Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 7,
+  "fields": {
+    "customer": 7,
+    "product": 3,
+    "quantity": 1,
+    "unit_price": "2900000.00",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "interest_rate": "0.00",
+    "sale_date": "2026-08-29",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.454Z",
+    "updated_at": "2026-09-03T14:28:30.454Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 8,
+  "fields": {
+    "customer": 2,
+    "product": 2,
+    "quantity": 1,
+    "unit_price": "3800000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 4,
+    "interest_rate": "12.00",
+    "sale_date": "2026-07-20",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.467Z",
+    "updated_at": "2026-09-03T14:28:30.467Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 9,
+  "fields": {
+    "customer": 3,
+    "product": 1,
+    "quantity": 1,
+    "unit_price": "4500000.00",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-01",
+    "notes": "",
+    "created_at": "2026-09-03T14:28:30.495Z",
+    "updated_at": "2026-09-03T14:28:30.495Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 10,
+  "fields": {
+    "customer": 5,
+    "product": 8,
+    "quantity": 1,
+    "unit_price": "2100000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-03",
+    "notes": "",
+    "created_at": "2026-09-03T15:51:21.382Z",
+    "updated_at": "2026-09-03T15:51:21.382Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 14,
+  "fields": {
+    "customer": 5,
+    "product": 7,
+    "quantity": 2,
+    "unit_price": "3200000.00",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-03",
+    "notes": "Reponer en Stock",
+    "created_at": "2026-09-03T16:03:36.229Z",
+    "updated_at": "2026-09-03T16:03:36.229Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 16,
+  "fields": {
+    "customer": 9,
+    "product": 6,
+    "quantity": 1,
+    "unit_price": "850000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 3,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-03",
+    "notes": "Generada desde Pedido #3. Si me pueden llevar al domicilio",
+    "created_at": "2026-09-03T21:01:21.987Z",
+    "updated_at": "2026-09-03T21:01:21.987Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 17,
+  "fields": {
+    "customer": 10,
+    "product": 8,
+    "quantity": 1,
+    "unit_price": "2100000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-05",
+    "notes": "Generada desde Pedido #6.",
+    "created_at": "2026-09-05T00:19:57.988Z",
+    "updated_at": "2026-09-05T00:19:57.988Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 18,
+  "fields": {
+    "customer": 10,
+    "product": 5,
+    "quantity": 1,
+    "unit_price": "1100000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-05",
+    "notes": "Generada desde Pedido #6.",
+    "created_at": "2026-09-05T00:19:58.188Z",
+    "updated_at": "2026-09-05T00:19:58.188Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 20,
+  "fields": {
+    "customer": 12,
+    "product": 9,
+    "quantity": 1,
+    "unit_price": "175000.00",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-05",
+    "notes": "Generada desde Pedido #7.",
+    "created_at": "2026-09-05T02:59:45.967Z",
+    "updated_at": "2026-09-05T02:59:45.967Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 21,
+  "fields": {
+    "customer": 13,
+    "product": 8,
+    "quantity": 1,
+    "unit_price": "2100000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-05",
+    "notes": "Generada desde Pedido #8.",
+    "created_at": "2026-09-05T13:03:14.507Z",
+    "updated_at": "2026-09-05T13:03:14.507Z"
+  }
+},
+{
+  "model": "api.sale",
+  "pk": 22,
+  "fields": {
+    "customer": 13,
+    "product": 6,
+    "quantity": 1,
+    "unit_price": "850000.00",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "interest_rate": "0.00",
+    "sale_date": "2026-09-05",
+    "notes": "Generada desde Pedido #8.",
+    "created_at": "2026-09-05T13:03:14.588Z",
+    "updated_at": "2026-09-05T13:03:14.588Z"
+  }
+},
+{
+  "model": "api.order",
+  "pk": 3,
+  "fields": {
+    "customer_name": "Dennis Vazquez",
+    "customer_phone": "0992883964",
+    "customer_email": "dennis.vazquez26@gmail.com",
+    "customer_document": "8872938",
+    "customer_address": "Barrio Cerrado Ytororo Country Club, Ypane",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 3,
+    "notes": "Si me pueden llevar al domicilio",
+    "status": "CONVERTED",
+    "linked_sale": 16,
+    "created_at": "2026-09-03T20:59:33.255Z",
+    "updated_at": "2026-09-03T21:01:22.057Z"
+  }
+},
+{
+  "model": "api.order",
+  "pk": 6,
+  "fields": {
+    "customer_name": "Elizeth Martinez",
+    "customer_phone": "991806506",
+    "customer_email": "Elizeth.martinez02@gmail.com",
+    "customer_document": "9105235",
+    "customer_address": "Ypane",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "notes": "",
+    "status": "CONVERTED",
+    "linked_sale": 17,
+    "created_at": "2026-09-05T00:19:00.951Z",
+    "updated_at": "2026-09-05T00:19:58.227Z"
+  }
+},
+{
+  "model": "api.order",
+  "pk": 7,
+  "fields": {
+    "customer_name": "Elisa",
+    "customer_phone": "993856954",
+    "customer_email": "",
+    "customer_document": "",
+    "customer_address": "Guarambare",
+    "payment_type": "CASH",
+    "installment_count": 1,
+    "notes": "",
+    "status": "CONVERTED",
+    "linked_sale": 20,
+    "created_at": "2026-09-05T02:59:17.749Z",
+    "updated_at": "2026-09-05T02:59:45.982Z"
+  }
+},
+{
+  "model": "api.order",
+  "pk": 8,
+  "fields": {
+    "customer_name": "Hugo",
+    "customer_phone": "993856984",
+    "customer_email": "",
+    "customer_document": "",
+    "customer_address": "Guarambare",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 6,
+    "notes": "",
+    "status": "CONVERTED",
+    "linked_sale": 21,
+    "created_at": "2026-09-05T13:02:05.194Z",
+    "updated_at": "2026-09-05T13:03:14.633Z"
+  }
+},
+{
+  "model": "api.orderitem",
+  "pk": 3,
+  "fields": {
+    "order": 3,
+    "product": 6,
+    "quantity": 1,
+    "unit_price": "850000.00"
+  }
+},
+{
+  "model": "api.orderitem",
+  "pk": 6,
+  "fields": {
+    "order": 6,
+    "product": 8,
+    "quantity": 1,
+    "unit_price": "2100000.00"
+  }
+},
+{
+  "model": "api.orderitem",
+  "pk": 7,
+  "fields": {
+    "order": 6,
+    "product": 5,
+    "quantity": 1,
+    "unit_price": "1100000.00"
+  }
+},
+{
+  "model": "api.orderitem",
+  "pk": 8,
+  "fields": {
+    "order": 7,
+    "product": 9,
+    "quantity": 1,
+    "unit_price": "175000.00"
+  }
+},
+{
+  "model": "api.orderitem",
+  "pk": 9,
+  "fields": {
+    "order": 8,
+    "product": 8,
+    "quantity": 1,
+    "unit_price": "2100000.00"
+  }
+},
+{
+  "model": "api.orderitem",
+  "pk": 10,
+  "fields": {
+    "order": 8,
+    "product": 6,
+    "quantity": 1,
+    "unit_price": "850000.00"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 7,
+  "fields": {
+    "sale": 3,
+    "number": 1,
+    "amount": "613333.33",
+    "due_date": "2026-05-06",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 8,
+  "fields": {
+    "sale": 3,
+    "number": 2,
+    "amount": "613333.33",
+    "due_date": "2026-06-06",
+    "status": "PAID",
+    "paid_date": "2026-06-06",
+    "paid_amount": "613333.33"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 9,
+  "fields": {
+    "sale": 3,
+    "number": 3,
+    "amount": "613333.33",
+    "due_date": "2026-07-06",
+    "status": "PAID",
+    "paid_date": "2026-07-06",
+    "paid_amount": "613333.33"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 10,
+  "fields": {
+    "sale": 3,
+    "number": 4,
+    "amount": "613333.33",
+    "due_date": "2026-08-06",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 11,
+  "fields": {
+    "sale": 3,
+    "number": 5,
+    "amount": "613333.33",
+    "due_date": "2026-09-06",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 12,
+  "fields": {
+    "sale": 3,
+    "number": 6,
+    "amount": "613333.35",
+    "due_date": "2026-10-06",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 13,
+  "fields": {
+    "sale": 4,
+    "number": 1,
+    "amount": "311666.67",
+    "due_date": "2026-09-14",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 14,
+  "fields": {
+    "sale": 4,
+    "number": 2,
+    "amount": "311666.67",
+    "due_date": "2026-10-14",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 15,
+  "fields": {
+    "sale": 4,
+    "number": 3,
+    "amount": "311666.66",
+    "due_date": "2026-11-14",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 16,
+  "fields": {
+    "sale": 6,
+    "number": 1,
+    "amount": "220000.00",
+    "due_date": "2026-03-15",
+    "status": "PAID",
+    "paid_date": "2026-03-15",
+    "paid_amount": "220000.00"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 17,
+  "fields": {
+    "sale": 6,
+    "number": 2,
+    "amount": "220000.00",
+    "due_date": "2026-04-15",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 18,
+  "fields": {
+    "sale": 6,
+    "number": 3,
+    "amount": "220000.00",
+    "due_date": "2026-05-15",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 19,
+  "fields": {
+    "sale": 6,
+    "number": 4,
+    "amount": "220000.00",
+    "due_date": "2026-06-15",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 20,
+  "fields": {
+    "sale": 6,
+    "number": 5,
+    "amount": "220000.00",
+    "due_date": "2026-07-15",
+    "status": "PAID",
+    "paid_date": "2026-07-15",
+    "paid_amount": "220000.00"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 21,
+  "fields": {
+    "sale": 6,
+    "number": 6,
+    "amount": "220000.00",
+    "due_date": "2026-08-15",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 22,
+  "fields": {
+    "sale": 6,
+    "number": 7,
+    "amount": "220000.00",
+    "due_date": "2026-09-15",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 23,
+  "fields": {
+    "sale": 6,
+    "number": 8,
+    "amount": "220000.00",
+    "due_date": "2026-10-15",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 24,
+  "fields": {
+    "sale": 6,
+    "number": 9,
+    "amount": "220000.00",
+    "due_date": "2026-11-15",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 25,
+  "fields": {
+    "sale": 6,
+    "number": 10,
+    "amount": "220000.00",
+    "due_date": "2026-12-15",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 26,
+  "fields": {
+    "sale": 6,
+    "number": 11,
+    "amount": "220000.00",
+    "due_date": "2027-01-15",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 27,
+  "fields": {
+    "sale": 6,
+    "number": 12,
+    "amount": "220000.00",
+    "due_date": "2027-02-15",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 28,
+  "fields": {
+    "sale": 8,
+    "number": 1,
+    "amount": "1064000.00",
+    "due_date": "2026-08-20",
+    "status": "OVERDUE",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 29,
+  "fields": {
+    "sale": 8,
+    "number": 2,
+    "amount": "1064000.00",
+    "due_date": "2026-09-20",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 30,
+  "fields": {
+    "sale": 8,
+    "number": 3,
+    "amount": "1064000.00",
+    "due_date": "2026-10-20",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 31,
+  "fields": {
+    "sale": 8,
+    "number": 4,
+    "amount": "1064000.00",
+    "due_date": "2026-11-20",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 32,
+  "fields": {
+    "sale": 10,
+    "number": 1,
+    "amount": "350000.00",
+    "due_date": "2026-10-03",
+    "status": "PAID",
+    "paid_date": "2026-09-03",
+    "paid_amount": "350000.00"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 33,
+  "fields": {
+    "sale": 10,
+    "number": 2,
+    "amount": "350000.00",
+    "due_date": "2026-11-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 34,
+  "fields": {
+    "sale": 10,
+    "number": 3,
+    "amount": "350000.00",
+    "due_date": "2026-12-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 35,
+  "fields": {
+    "sale": 10,
+    "number": 4,
+    "amount": "350000.00",
+    "due_date": "2027-01-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 36,
+  "fields": {
+    "sale": 10,
+    "number": 5,
+    "amount": "350000.00",
+    "due_date": "2027-02-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 37,
+  "fields": {
+    "sale": 10,
+    "number": 6,
+    "amount": "350000.00",
+    "due_date": "2027-03-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 38,
+  "fields": {
+    "sale": 16,
+    "number": 1,
+    "amount": "283333.33",
+    "due_date": "2026-10-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 39,
+  "fields": {
+    "sale": 16,
+    "number": 2,
+    "amount": "283333.33",
+    "due_date": "2026-11-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 40,
+  "fields": {
+    "sale": 16,
+    "number": 3,
+    "amount": "283333.34",
+    "due_date": "2026-12-03",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 41,
+  "fields": {
+    "sale": 17,
+    "number": 1,
+    "amount": "350000.00",
+    "due_date": "2026-10-05",
+    "status": "PAID",
+    "paid_date": "2026-09-05",
+    "paid_amount": "350000.00"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 42,
+  "fields": {
+    "sale": 17,
+    "number": 2,
+    "amount": "350000.00",
+    "due_date": "2026-11-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 43,
+  "fields": {
+    "sale": 17,
+    "number": 3,
+    "amount": "350000.00",
+    "due_date": "2026-12-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 44,
+  "fields": {
+    "sale": 17,
+    "number": 4,
+    "amount": "350000.00",
+    "due_date": "2027-01-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 45,
+  "fields": {
+    "sale": 17,
+    "number": 5,
+    "amount": "350000.00",
+    "due_date": "2027-02-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 46,
+  "fields": {
+    "sale": 17,
+    "number": 6,
+    "amount": "350000.00",
+    "due_date": "2027-03-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 47,
+  "fields": {
+    "sale": 18,
+    "number": 1,
+    "amount": "183333.33",
+    "due_date": "2026-10-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 48,
+  "fields": {
+    "sale": 18,
+    "number": 2,
+    "amount": "183333.33",
+    "due_date": "2026-11-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 49,
+  "fields": {
+    "sale": 18,
+    "number": 3,
+    "amount": "183333.33",
+    "due_date": "2026-12-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 50,
+  "fields": {
+    "sale": 18,
+    "number": 4,
+    "amount": "183333.33",
+    "due_date": "2027-01-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 51,
+  "fields": {
+    "sale": 18,
+    "number": 5,
+    "amount": "183333.33",
+    "due_date": "2027-02-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 52,
+  "fields": {
+    "sale": 18,
+    "number": 6,
+    "amount": "183333.35",
+    "due_date": "2027-03-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 53,
+  "fields": {
+    "sale": 21,
+    "number": 1,
+    "amount": "350000.00",
+    "due_date": "2026-10-05",
+    "status": "PAID",
+    "paid_date": "2026-09-05",
+    "paid_amount": "350000.00"
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 54,
+  "fields": {
+    "sale": 21,
+    "number": 2,
+    "amount": "350000.00",
+    "due_date": "2026-11-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 55,
+  "fields": {
+    "sale": 21,
+    "number": 3,
+    "amount": "350000.00",
+    "due_date": "2026-12-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 56,
+  "fields": {
+    "sale": 21,
+    "number": 4,
+    "amount": "350000.00",
+    "due_date": "2027-01-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 57,
+  "fields": {
+    "sale": 21,
+    "number": 5,
+    "amount": "350000.00",
+    "due_date": "2027-02-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 58,
+  "fields": {
+    "sale": 21,
+    "number": 6,
+    "amount": "350000.00",
+    "due_date": "2027-03-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 59,
+  "fields": {
+    "sale": 22,
+    "number": 1,
+    "amount": "141666.67",
+    "due_date": "2026-10-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 60,
+  "fields": {
+    "sale": 22,
+    "number": 2,
+    "amount": "141666.67",
+    "due_date": "2026-11-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 61,
+  "fields": {
+    "sale": 22,
+    "number": 3,
+    "amount": "141666.67",
+    "due_date": "2026-12-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 62,
+  "fields": {
+    "sale": 22,
+    "number": 4,
+    "amount": "141666.67",
+    "due_date": "2027-01-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 63,
+  "fields": {
+    "sale": 22,
+    "number": 5,
+    "amount": "141666.67",
+    "due_date": "2027-02-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.installment",
+  "pk": 64,
+  "fields": {
+    "sale": 22,
+    "number": 6,
+    "amount": "141666.65",
+    "due_date": "2027-03-05",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null
+  }
+},
+{
+  "model": "api.purchaseinvoice",
+  "pk": 5,
+  "fields": {
+    "supplier": 3,
+    "invoice_number": "001-002-003",
+    "payment_type": "INSTALLMENTS",
+    "installment_count": 3,
+    "purchase_date": "2026-09-07",
+    "notes": "Cuotas para el proveedor",
+    "created_at": "2026-09-07T14:54:49.731Z",
+    "updated_at": "2026-09-07T14:54:49.731Z"
+  }
+},
+{
+  "model": "api.purchaseinvoiceitem",
+  "pk": 5,
+  "fields": {
+    "purchase_invoice": 5,
+    "product": 8,
+    "quantity": 1,
+    "unit_cost": "800000.00"
+  }
+},
+{
+  "model": "api.purchaseinvoiceitem",
+  "pk": 6,
+  "fields": {
+    "purchase_invoice": 5,
+    "product": 14,
+    "quantity": 1,
+    "unit_cost": "60000.00"
+  }
+},
+{
+  "model": "api.purchaseinstallment",
+  "pk": 6,
+  "fields": {
+    "purchase_invoice": 5,
+    "number": 1,
+    "amount": "286666.67",
+    "due_date": "2026-10-07",
+    "status": "PAID",
+    "paid_date": "2026-09-07",
+    "paid_amount": "286666.67",
+    "expense": 17
+  }
+},
+{
+  "model": "api.purchaseinstallment",
+  "pk": 7,
+  "fields": {
+    "purchase_invoice": 5,
+    "number": 2,
+    "amount": "286666.67",
+    "due_date": "2026-11-07",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null,
+    "expense": null
+  }
+},
+{
+  "model": "api.purchaseinstallment",
+  "pk": 8,
+  "fields": {
+    "purchase_invoice": 5,
+    "number": 3,
+    "amount": "286666.66",
+    "due_date": "2026-12-07",
+    "status": "PENDING",
+    "paid_date": null,
+    "paid_amount": null,
+    "expense": null
+  }
+},
+{
+  "model": "api.expense",
+  "pk": 2,
+  "fields": {
+    "amount": "250000.00",
+    "category": "UTILITIES",
+    "description": "Factura de la Luz",
+    "expense_date": "2026-09-04",
+    "receipt": "",
+    "created_at": "2026-09-05T01:56:36.391Z",
+    "updated_at": "2026-09-05T01:56:36.391Z"
+  }
+},
+{
+  "model": "api.expense",
+  "pk": 5,
+  "fields": {
+    "amount": "150000.00",
+    "category": "UTILITIES",
+    "description": "Servicio de Internet",
+    "expense_date": "2026-09-05",
+    "receipt": "",
+    "created_at": "2026-09-05T01:59:46.890Z",
+    "updated_at": "2026-09-05T01:59:46.890Z"
+  }
+},
+{
+  "model": "api.expense",
+  "pk": 7,
+  "fields": {
+    "amount": "500000.00",
+    "category": "MERCHANDISE",
+    "description": "Ingreso de stock: 5 x Licuadora Oster",
+    "expense_date": "2026-09-05",
+    "receipt": "",
+    "created_at": "2026-09-05T02:12:05.604Z",
+    "updated_at": "2026-09-05T02:12:05.604Z"
+  }
+},
+{
+  "model": "api.expense",
+  "pk": 8,
+  "fields": {
+    "amount": "10000000.00",
+    "category": "SALARIES",
+    "description": "Salario de Trabajadores",
+    "expense_date": "2026-09-05",
+    "receipt": "",
+    "created_at": "2026-09-05T02:24:07.526Z",
+    "updated_at": "2026-09-05T02:24:26.448Z"
+  }
+},
+{
+  "model": "api.expense",
+  "pk": 12,
+  "fields": {
+    "amount": "200000.00",
+    "category": "MERCHANDISE",
+    "description": "Ingreso de stock: 2 x Licuadora Oster",
+    "expense_date": "2026-09-05",
+    "receipt": "",
+    "created_at": "2026-09-05T02:58:37.117Z",
+    "updated_at": "2026-09-05T02:58:37.117Z"
+  }
+},
+{
+  "model": "api.expense",
+  "pk": 17,
+  "fields": {
+    "amount": "286666.67",
+    "category": "MERCHANDISE",
+    "description": "Pago cuota 1/3 - Compra #5 - NGO",
+    "expense_date": "2026-09-07",
+    "receipt": "",
+    "created_at": "2026-09-07T15:07:35.911Z",
+    "updated_at": "2026-09-07T15:07:35.911Z"
+  }
+}
+]
