@@ -58,6 +58,7 @@ export default function ClientesPage() {
         ) : customers.length === 0 ? (
           <p className="text-gray-400 text-sm p-6 text-center italic">No se encontraron clientes.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr className="text-left text-gray-500">
@@ -94,6 +95,7 @@ export default function ClientesPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

@@ -152,6 +152,7 @@ export default function GastosPage() {
                 </button>
 
                 {!isCollapsed && (
+                  <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-left text-gray-500 border-t border-gray-100">
@@ -204,6 +205,7 @@ export default function GastosPage() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 )}
               </div>
             )

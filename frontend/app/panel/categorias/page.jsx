@@ -78,6 +78,7 @@ export default function CategoriasPage() {
             <p className="text-gray-400 text-sm">No hay categorías creadas.</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr className="text-left text-gray-500">
@@ -105,6 +106,7 @@ export default function CategoriasPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
