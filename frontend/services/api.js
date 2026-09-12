@@ -305,6 +305,21 @@ export const companyInfoService = {
   },
 }
 
+function toCustomerFormData(payload) {
+  const formData = new FormData()
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'id_document_image') {
+      if (value instanceof File) formData.append('id_document_image', value)
+      else if (value === '') formData.append('id_document_image', '')
+      return
+    }
+    if (value !== null && value !== undefined) {
+      formData.append(key, value)
+    }
+  })
+  return formData
+}
+
 export const customerService = {
   getAll: async (params = {}) => {
     const { data } = await api.get('/customers/', { params })
@@ -319,11 +334,15 @@ export const customerService = {
     return data
   },
   create: async (payload) => {
-    const { data } = await api.post('/customers/', payload)
+    const { data } = await api.post('/customers/', toCustomerFormData(payload), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return data
   },
   update: async (id, payload) => {
-    const { data } = await api.patch(`/customers/${id}/`, payload)
+    const { data } = await api.patch(`/customers/${id}/`, toCustomerFormData(payload), {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
     return data
   },
 }

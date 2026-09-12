@@ -85,6 +85,9 @@ class CustomerSerializer(serializers.ModelSerializer):
         model = Customer
         fields = [
             'id', 'full_name', 'document_number', 'phone', 'email', 'address',
+            'id_document_image', 'maps_location_url', 'economic_activity',
+            'reference1_name', 'reference1_phone', 'reference1_relation',
+            'reference2_name', 'reference2_phone', 'reference2_relation',
             'total_debt', 'overdue_count', 'created_at', 'updated_at',
         ]
 
@@ -135,34 +138,48 @@ class InstallmentSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='sale.customer.full_name', read_only=True)
     customer_id = serializers.IntegerField(source='sale.customer.id', read_only=True)
     customer_document = serializers.CharField(source='sale.customer.document_number', read_only=True)
+    customer_phone = serializers.CharField(source='sale.customer.phone', read_only=True)
     product_name = serializers.CharField(source='sale.product.name', read_only=True)
     installment_count = serializers.IntegerField(source='sale.installment_count', read_only=True)
     sale_date = serializers.DateField(source='sale.sale_date', read_only=True)
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = Installment
         fields = [
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
-            'customer_name', 'customer_id', 'customer_document', 'product_name',
+            'customer_name', 'customer_id', 'customer_document', 'customer_phone', 'product_name',
             'installment_count', 'sale_date',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date']
+
+    def get_status(self, obj):
+        if obj.status == Installment.STATUS_PENDING and obj.is_overdue:
+            return Installment.STATUS_OVERDUE
+        return obj.status
 
 
 class PurchaseInstallmentSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='purchase_invoice.supplier.name', read_only=True)
     supplier_id = serializers.IntegerField(source='purchase_invoice.supplier.id', read_only=True)
+    supplier_phone = serializers.CharField(source='purchase_invoice.supplier.phone', read_only=True)
     invoice_number = serializers.CharField(source='purchase_invoice.invoice_number', read_only=True)
     installment_count = serializers.IntegerField(source='purchase_invoice.installment_count', read_only=True)
     purchase_date = serializers.DateField(source='purchase_invoice.purchase_date', read_only=True)
+    status = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseInstallment
         fields = [
             'id', 'purchase_invoice', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
-            'supplier_name', 'supplier_id', 'invoice_number', 'installment_count', 'purchase_date',
+            'supplier_name', 'supplier_id', 'supplier_phone', 'invoice_number', 'installment_count', 'purchase_date',
         ]
         read_only_fields = ['id', 'purchase_invoice', 'number', 'amount', 'due_date']
+
+    def get_status(self, obj):
+        if obj.status == PurchaseInstallment.STATUS_PENDING and obj.is_overdue:
+            return PurchaseInstallment.STATUS_OVERDUE
+        return obj.status
 
 
 class SaleSerializer(serializers.ModelSerializer):

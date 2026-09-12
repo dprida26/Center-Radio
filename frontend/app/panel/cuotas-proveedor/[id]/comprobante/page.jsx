@@ -1,14 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Printer } from 'lucide-react'
+import { ArrowLeft, Printer, Loader2 } from 'lucide-react'
 import { purchaseInstallmentService } from '@/services/api'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
+import { shareReceiptAsImage } from '@/lib/shareReceipt'
+import { FaWhatsapp } from 'react-icons/fa'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
+}
+
+function slugify(text) {
+  return text
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 function formatDate(value) {
@@ -26,6 +36,8 @@ export default function ComprobanteCuotaProveedorPage() {
   const [installment, setInstallment] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [sharing, setSharing] = useState(false)
+  const receiptRef = useRef(null)
 
   useEffect(() => {
     purchaseInstallmentService
@@ -34,6 +46,21 @@ export default function ComprobanteCuotaProveedorPage() {
       .catch(() => setError('No se pudo cargar la cuota.'))
       .finally(() => setLoading(false))
   }, [id])
+
+  const handleShare = async () => {
+    if (!receiptRef.current) return
+    setSharing(true)
+    try {
+      const fileName = `comprobante-${slugify(installment.supplier_name)}-cuota-${installment.number}.png`
+      await shareReceiptAsImage(receiptRef.current, fileName, installment.supplier_phone)
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        alert('No se pudo compartir el comprobante. Probá con "Imprimir" en su lugar.')
+      }
+    } finally {
+      setSharing(false)
+    }
+  }
 
   if (loading) return <p className="text-gray-500 p-6">Cargando...</p>
   if (error || !installment) return <p className="text-red-600 p-6">{error || 'Cuota no encontrada.'}</p>
@@ -65,16 +92,26 @@ export default function ComprobanteCuotaProveedorPage() {
           <ArrowLeft size={16} />
           Volver
         </Link>
-        <button
-          onClick={() => window.print()}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
-        >
-          <Printer size={16} />
-          Imprimir comprobante
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="flex items-center gap-2 bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity"
+          >
+            {sharing ? <Loader2 size={16} className="animate-spin" /> : <FaWhatsapp size={16} />}
+            {sharing ? 'Generando...' : 'Compartir por WhatsApp'}
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            <Printer size={16} />
+            Imprimir comprobante
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-xl p-8 print:border-0 print:rounded-none print:p-0">
+      <div ref={receiptRef} className="bg-white border border-gray-200 rounded-xl p-8 print:border-0 print:rounded-none print:p-0">
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-6 mb-6">
           <div className="flex items-center gap-3">
             {info?.logo && (

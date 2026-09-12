@@ -2,7 +2,7 @@ import os
 from django.core.management.base import BaseCommand
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from api.models import Product, ProductImage, CompanyInfo
+from api.models import Product, ProductImage, CompanyInfo, Customer
 
 
 class Command(BaseCommand):
@@ -15,6 +15,7 @@ class Command(BaseCommand):
             (Product.objects.exclude(image='').filter(image__isnull=False), 'image'),
             (ProductImage.objects.exclude(image='').filter(image__isnull=False), 'image'),
             (CompanyInfo.objects.exclude(logo='').filter(logo__isnull=False), 'logo'),
+            (Customer.objects.exclude(id_document_image='').filter(id_document_image__isnull=False), 'id_document_image'),
         ]
 
         migrated = 0
