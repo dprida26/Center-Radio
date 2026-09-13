@@ -48,9 +48,11 @@ export default function ProveedorDetallePage() {
     try {
       await purchaseInstallmentService.markPaid(confirmTarget.id, confirmTarget.amount)
       load()
+      setConfirmTarget(null)
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo registrar el pago.')
     } finally {
       setBusyId(null)
-      setConfirmTarget(null)
     }
   }
 

@@ -356,6 +356,14 @@ class InstallmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def mark_paid(self, request, pk=None):
         installment = self.get_object()
+        pending_previous = Installment.objects.filter(
+            sale=installment.sale, number__lt=installment.number,
+        ).exclude(status=Installment.STATUS_PAID).exists()
+        if pending_previous:
+            return Response(
+                {'error': 'No se puede pagar esta cuota sin antes pagar las cuotas anteriores.'},
+                status=400,
+            )
         paid_amount = request.data.get('paid_amount')
         installment.mark_as_paid(paid_amount=paid_amount)
         log_action(
@@ -474,6 +482,14 @@ class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def mark_paid(self, request, pk=None):
         installment = self.get_object()
+        pending_previous = PurchaseInstallment.objects.filter(
+            purchase_invoice=installment.purchase_invoice, number__lt=installment.number,
+        ).exclude(status=PurchaseInstallment.STATUS_PAID).exists()
+        if pending_previous:
+            return Response(
+                {'error': 'No se puede pagar esta cuota sin antes pagar las cuotas anteriores.'},
+                status=400,
+            )
         paid_amount = request.data.get('paid_amount')
         installment.mark_as_paid(paid_amount=paid_amount)
         log_action(

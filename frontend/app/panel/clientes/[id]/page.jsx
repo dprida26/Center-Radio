@@ -56,9 +56,11 @@ export default function ClienteDetallePage() {
     try {
       await installmentService.markPaid(confirmTarget.id, confirmTarget.amount)
       load()
+      setConfirmTarget(null)
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo registrar el pago.')
     } finally {
       setBusyId(null)
-      setConfirmTarget(null)
     }
   }
 
