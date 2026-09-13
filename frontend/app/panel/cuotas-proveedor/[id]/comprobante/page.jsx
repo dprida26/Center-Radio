@@ -55,6 +55,7 @@ export default function ComprobanteCuotaProveedorPage() {
       await shareReceiptAsImage(receiptRef.current, fileName, installment.supplier_phone)
     } catch (err) {
       if (err?.name !== 'AbortError') {
+        console.error('Error al compartir comprobante:', err)
         alert('No se pudo compartir el comprobante. Probá con "Imprimir" en su lugar.')
       }
     } finally {
@@ -115,7 +116,7 @@ export default function ComprobanteCuotaProveedorPage() {
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-6 mb-6">
           <div className="flex items-center gap-3">
             {info?.logo && (
-              <img src={info.logo} alt={info.name} className="w-14 h-14 object-contain" />
+              <img src={info.logo} alt={info.name} crossOrigin="anonymous" className="w-14 h-14 object-contain" />
             )}
             <div>
               <p className="font-bold text-gray-900 text-lg">{info?.legal_name || info?.name}</p>

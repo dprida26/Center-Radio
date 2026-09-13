@@ -142,6 +142,8 @@ class InstallmentSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='sale.product.name', read_only=True)
     installment_count = serializers.IntegerField(source='sale.installment_count', read_only=True)
     sale_date = serializers.DateField(source='sale.sale_date', read_only=True)
+    # Solo lectura: el estado real se calcula en get_status. Un PATCH con "status" en el
+    # body se ignora en silencio; usar las acciones mark_paid/revert_payment del viewset.
     status = serializers.SerializerMethodField()
 
     class Meta:
@@ -166,6 +168,8 @@ class PurchaseInstallmentSerializer(serializers.ModelSerializer):
     invoice_number = serializers.CharField(source='purchase_invoice.invoice_number', read_only=True)
     installment_count = serializers.IntegerField(source='purchase_invoice.installment_count', read_only=True)
     purchase_date = serializers.DateField(source='purchase_invoice.purchase_date', read_only=True)
+    # Solo lectura: el estado real se calcula en get_status. Un PATCH con "status" en el
+    # body se ignora en silencio; usar las acciones mark_paid/revert_payment del viewset.
     status = serializers.SerializerMethodField()
 
     class Meta:
