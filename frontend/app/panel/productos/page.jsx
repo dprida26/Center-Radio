@@ -62,6 +62,9 @@ export default function ProductosPage() {
       await productService.remove(deleteTarget.id)
       setDeleteTarget(null)
       load()
+    } catch (err) {
+      const message = err?.response?.data?.[0] || err?.response?.data?.detail
+      alert(message || 'No se pudo eliminar el producto.')
     } finally {
       setDeleting(false)
     }

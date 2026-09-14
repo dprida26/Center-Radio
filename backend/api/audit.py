@@ -1,3 +1,5 @@
+from django.db.models import ProtectedError
+from rest_framework.exceptions import ValidationError
 from .models import AuditLog
 
 TRACKED_FIELDS_MAX_LEN = 200
@@ -56,5 +58,11 @@ class AuditMixin:
         log_action(self.request.user, AuditLog.ACTION_UPDATE, instance, changes=changes)
 
     def perform_destroy(self, instance):
+        try:
+            instance.delete()
+        except ProtectedError:
+            raise ValidationError(
+                'No se puede eliminar porque tiene ventas, compras o pedidos asociados. '
+                'Podés desactivarlo en su lugar.'
+            )
         log_action(self.request.user, AuditLog.ACTION_DELETE, instance)
-        instance.delete()
