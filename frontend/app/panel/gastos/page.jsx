@@ -10,6 +10,10 @@ const CATEGORY_OPTIONS = [
   { value: 'SALARIES', label: 'Sueldos' },
   { value: 'MERCHANDISE', label: 'Mercadería' },
   { value: 'MARKETING', label: 'Marketing' },
+  { value: 'MAINTENANCE', label: 'Mantenimiento/Reparaciones' },
+  { value: 'INSURANCE', label: 'Seguros' },
+  { value: 'SUPPLIES', label: 'Insumos de oficina/embalaje' },
+  { value: 'SALES_COMMISSIONS', label: 'Comisiones a vendedores' },
   { value: 'OTHER', label: 'Otros' },
 ]
 

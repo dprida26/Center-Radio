@@ -12,6 +12,7 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { reportService, categoryService, installmentService } from '@/services/api'
+import { printElementById } from '@/lib/printCard'
 
 const PAYMENT_LABELS = { CASH: 'Contado', INSTALLMENTS: 'Cuotas' }
 const STATUS_LABELS = { PENDING: 'Pendiente', CONTACTED: 'Contactado', CONVERTED: 'Convertido', DISCARDED: 'Descartado' }
@@ -42,13 +43,6 @@ function monthsAgoISO(months) {
   d.setMonth(d.getMonth() - months)
   return d.toISOString().slice(0, 10)
 }
-
-const QUICK_RANGES = [
-  { label: '30 días', from: () => monthsAgoISO(1) },
-  { label: '3 meses', from: () => monthsAgoISO(3) },
-  { label: '6 meses', from: () => monthsAgoISO(6) },
-  { label: '12 meses', from: () => monthsAgoISO(12) },
-]
 
 export default function ReportesPage() {
   const { info } = useCompanyInfo()
@@ -188,7 +182,7 @@ export default function ReportesPage() {
           <SummaryCards data={data} />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-3">
-            <div className="lg:col-span-2 print:col-span-2 bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+            <PrintableCard id="card-ventas-tiempo" className="lg:col-span-2 print:col-span-2 p-6">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Ventas en el tiempo</h2>
               {chartData.length === 0 ? (
                 <EmptyState text="No hay ventas en el período seleccionado." />
@@ -203,9 +197,9 @@ export default function ReportesPage() {
                   </LineChart>
                 </ResponsiveContainer>
               )}
-            </div>
+            </PrintableCard>
 
-            <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+            <PrintableCard id="card-contado-cuotas" className="p-6">
               <h2 className="text-sm font-semibold text-gray-700 mb-4">Contado vs Cuotas</h2>
               {paymentPieData.length === 0 ? (
                 <EmptyState text="Sin datos." />
@@ -229,11 +223,12 @@ export default function ReportesPage() {
                   </PieChart>
                 </ResponsiveContainer>
               )}
-            </div>
+            </PrintableCard>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RankingCard
+              id="card-productos-mas-vendidos"
               title="Productos más vendidos"
               icon={Package}
               rows={data.top_products}
@@ -246,6 +241,7 @@ export default function ReportesPage() {
               )}
             />
             <RankingCard
+              id="card-categorias-mas-vendidas"
               title="Categorías más vendidas"
               icon={BarChart3}
               rows={data.top_categories}
@@ -259,7 +255,7 @@ export default function ReportesPage() {
             />
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+          <PrintableCard id="card-gastos-categoria" className="p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
               <TrendingDown size={16} className="text-red-500" />
               Gastos por categoría
@@ -277,7 +273,7 @@ export default function ReportesPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </PrintableCard>
         </>
         )}
 
@@ -285,6 +281,7 @@ export default function ReportesPage() {
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <RankingCard
+              id="card-mejores-clientes"
               title="Mejores clientes (por monto comprado)"
               icon={Users}
               rows={data.top_customers}
@@ -299,7 +296,7 @@ export default function ReportesPage() {
               )}
             />
 
-            <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+            <PrintableCard id="card-cobranza-cuotas" className="p-6">
               <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                 <AlertTriangle size={16} className="text-red-500" />
                 Cobranza de cuotas
@@ -331,7 +328,7 @@ export default function ReportesPage() {
                   ))}
                 </ul>
               )}
-            </div>
+            </PrintableCard>
           </div>
 
           <DueInstallmentsReport installments={dueInstallments} loading={dueLoading} />
@@ -339,7 +336,7 @@ export default function ReportesPage() {
         )}
 
         {tab === 'proveedores' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+          <PrintableCard id="card-cuentas-por-pagar" className="p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
               <Truck size={16} className="text-amber-500" />
               Cuentas por pagar a proveedores
@@ -371,11 +368,11 @@ export default function ReportesPage() {
                 ))}
               </ul>
             )}
-          </div>
+          </PrintableCard>
         )}
 
         {tab === 'pedidos' && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+          <PrintableCard id="card-pedidos-web" className="p-6">
             <h2 className="text-sm font-semibold text-gray-700 mb-4">Pedidos web (bandeja de entrada)</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <MiniStat label="Total pedidos" value={data.orders.total} />
@@ -387,7 +384,7 @@ export default function ReportesPage() {
                 small
               />
             </div>
-          </div>
+          </PrintableCard>
         )}
         </>
       )}
@@ -414,7 +411,7 @@ function DueInstallmentsReport({ installments, loading }) {
   const upcoming = installments.filter((i) => i.status !== 'OVERDUE')
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+    <PrintableCard id="card-cuotas-por-vencer" className="p-6">
       <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
         <Clock size={16} className="text-amber-500" />
         Cuotas atrasadas y próximas a vencer (7 días)
@@ -475,67 +472,63 @@ function DueInstallmentsReport({ installments, loading }) {
           </table>
         </div>
       )}
-    </div>
+    </PrintableCard>
   )
 }
 
 function FiltersBar({ filters, setFilters, categories }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-end gap-4">
-      <div className="flex gap-1">
-        {QUICK_RANGES.map((r) => (
-          <button
-            key={r.label}
-            onClick={() => setFilters((f) => ({ ...f, date_from: r.from(), date_to: todayISO() }))}
-            className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            {r.label}
-          </button>
-        ))}
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap items-end gap-5">
+      <div className="flex items-end gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Desde</label>
+          <input
+            type="date"
+            value={filters.date_from}
+            onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        <span className="text-gray-300 pb-2.5">→</span>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Hasta</label>
+          <input
+            type="date"
+            value={filters.date_to}
+            onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Desde</label>
-        <input
-          type="date"
-          value={filters.date_from}
-          onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
-          className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Hasta</label>
-        <input
-          type="date"
-          value={filters.date_to}
-          onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
-          className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Categoría</label>
-        <select
-          value={filters.category_id}
-          onChange={(e) => setFilters((f) => ({ ...f, category_id: e.target.value }))}
-          className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Todas</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Tipo de pago</label>
-        <select
-          value={filters.payment_type}
-          onChange={(e) => setFilters((f) => ({ ...f, payment_type: e.target.value }))}
-          className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Todos</option>
-          <option value="CASH">Contado</option>
-          <option value="INSTALLMENTS">Cuotas</option>
-        </select>
+      <div className="hidden sm:block w-px self-stretch bg-gray-200" />
+
+      <div className="flex flex-wrap items-end gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Categoría</label>
+          <select
+            value={filters.category_id}
+            onChange={(e) => setFilters((f) => ({ ...f, category_id: e.target.value }))}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Todas</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tipo de pago</label>
+          <select
+            value={filters.payment_type}
+            onChange={(e) => setFilters((f) => ({ ...f, payment_type: e.target.value }))}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Todos</option>
+            <option value="CASH">Contado</option>
+            <option value="INSTALLMENTS">Cuotas</option>
+          </select>
+        </div>
       </div>
     </div>
   )
@@ -569,9 +562,9 @@ function SummaryCards({ data }) {
   )
 }
 
-function RankingCard({ title, icon: Icon, rows, renderRow }) {
+function RankingCard({ id, title, icon: Icon, rows, renderRow }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 print:border-gray-300 print:break-inside-avoid">
+    <PrintableCard id={id} className="p-6">
       <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
         <Icon size={16} className="text-gray-400" />
         {title}
@@ -587,7 +580,7 @@ function RankingCard({ title, icon: Icon, rows, renderRow }) {
           ))}
         </ul>
       )}
-    </div>
+    </PrintableCard>
   )
 }
 
@@ -605,6 +598,21 @@ function MiniStat({ label, value, small }) {
     <div className="min-w-0">
       <p className={`break-words ${small ? 'text-xs text-gray-600' : 'text-xl font-bold text-gray-900'}`}>{value}</p>
       <p className="text-xs text-gray-500 mt-1">{label}</p>
+    </div>
+  )
+}
+
+function PrintableCard({ id, className = '', children }) {
+  return (
+    <div id={id} className={`relative group bg-white rounded-xl border border-gray-200 print:border-gray-300 print:break-inside-avoid ${className}`}>
+      <button
+        onClick={() => printElementById(id)}
+        title="Imprimir esta tarjeta"
+        className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-600 transition-opacity print:hidden"
+      >
+        <Printer size={15} />
+      </button>
+      {children}
     </div>
   )
 }

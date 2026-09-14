@@ -168,7 +168,11 @@ function Section({ title, icon: Icon, iconColor, badge, children, emptyText, see
           </Link>
         )}
       </div>
-      {badge === 0 ? <EmptyState text={emptyText} /> : children}
+      {badge === 0 ? (
+        <EmptyState text={emptyText} />
+      ) : (
+        <div className="max-h-80 overflow-y-auto pr-1">{children}</div>
+      )}
     </div>
   )
 }

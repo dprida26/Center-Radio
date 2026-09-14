@@ -572,6 +572,10 @@ class Expense(models.Model):
     CATEGORY_SALARIES = 'SALARIES'
     CATEGORY_MERCHANDISE = 'MERCHANDISE'
     CATEGORY_MARKETING = 'MARKETING'
+    CATEGORY_MAINTENANCE = 'MAINTENANCE'
+    CATEGORY_INSURANCE = 'INSURANCE'
+    CATEGORY_SUPPLIES = 'SUPPLIES'
+    CATEGORY_SALES_COMMISSIONS = 'SALES_COMMISSIONS'
     CATEGORY_OTHER = 'OTHER'
     CATEGORY_CHOICES = [
         (CATEGORY_RENT, 'Alquiler'),
@@ -579,6 +583,10 @@ class Expense(models.Model):
         (CATEGORY_SALARIES, 'Sueldos'),
         (CATEGORY_MERCHANDISE, 'Mercadería'),
         (CATEGORY_MARKETING, 'Marketing'),
+        (CATEGORY_MAINTENANCE, 'Mantenimiento/Reparaciones'),
+        (CATEGORY_INSURANCE, 'Seguros'),
+        (CATEGORY_SUPPLIES, 'Insumos de oficina/embalaje'),
+        (CATEGORY_SALES_COMMISSIONS, 'Comisiones a vendedores'),
         (CATEGORY_OTHER, 'Otros'),
     ]
 
