@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ChevronDown, ChevronUp, Phone, Mail, MapPin, FileText, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
 import { orderService } from '@/services/api'
+import Pagination from '@/components/panel/Pagination'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -25,6 +26,9 @@ const STATUS_STYLES = {
 
 export default function PedidosPage() {
   const [orders, setOrders] = useState([])
+  const [count, setCount] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pendingCount, setPendingCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
   const [expandedId, setExpandedId] = useState(null)
@@ -34,15 +38,32 @@ export default function PedidosPage() {
   const loadOrders = () => {
     setLoading(true)
     orderService
-      .getAll(statusFilter ? { status: statusFilter } : {})
-      .then(setOrders)
+      .getPage({ page, ...(statusFilter ? { status: statusFilter } : {}) })
+      .then((data) => {
+        setOrders(data.results)
+        setCount(data.count)
+      })
       .finally(() => setLoading(false))
   }
+
+  const loadPendingCount = () => {
+    orderService.getPendingCount().then(setPendingCount).catch(() => {})
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter])
 
   useEffect(() => {
     loadOrders()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter])
+  }, [statusFilter, page])
+
+  useEffect(() => {
+    loadPendingCount()
+  }, [])
+
+  const totalPages = Math.max(1, Math.ceil(count / 20))
 
   const handleSetStatus = async (order, status) => {
     setBusyId(order.id)
@@ -50,6 +71,7 @@ export default function PedidosPage() {
     try {
       const updated = await orderService.setStatus(order.id, status)
       setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)))
+      loadPendingCount()
     } catch (err) {
       setActionError('No se pudo actualizar el estado del pedido.')
     } finally {
@@ -63,6 +85,7 @@ export default function PedidosPage() {
     try {
       const result = await orderService.convertToSale(order.id)
       setOrders((prev) => prev.map((o) => (o.id === order.id ? result.order : o)))
+      loadPendingCount()
     } catch (err) {
       setActionError(err.response?.data?.error || 'No se pudo convertir el pedido en venta.')
     } finally {
@@ -70,15 +93,13 @@ export default function PedidosPage() {
     }
   }
 
-  const pendingCount = orders.filter((o) => o.status === 'PENDING').length
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
           <p className="text-gray-500 text-sm mt-1">
-            {orders.length} pedido(s){statusFilter ? '' : ` — ${pendingCount} pendiente(s)`}
+            {count} pedido(s){statusFilter ? '' : ` — ${pendingCount} pendiente(s)`}
           </p>
         </div>
         <button
@@ -240,6 +261,8 @@ export default function PedidosPage() {
           </div>
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
     </div>
   )
 }

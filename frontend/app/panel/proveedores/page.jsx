@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Search, Plus, X, Loader2 } from 'lucide-react'
 import { supplierService } from '@/services/api'
+import Pagination from '@/components/panel/Pagination'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -11,29 +12,40 @@ function formatGs(value) {
 
 export default function ProveedoresPage() {
   const [suppliers, setSuppliers] = useState([])
+  const [count, setCount] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     supplierService
-      .getAll(search ? { search } : {})
-      .then(setSuppliers)
+      .getPage({ page, ...(search ? { search } : {}) })
+      .then((data) => {
+        setSuppliers(data.results)
+        setCount(data.count)
+      })
       .finally(() => setLoading(false))
-  }
+  }, [page, search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search])
 
   useEffect(() => {
     const timeout = setTimeout(load, 300)
     return () => clearTimeout(timeout)
-  }, [search])
+  }, [load])
+
+  const totalPages = Math.max(1, Math.ceil(count / 20))
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Proveedores</h1>
-          <p className="text-gray-500 text-sm mt-1">{suppliers.length} proveedor(es)</p>
+          <p className="text-gray-500 text-sm mt-1">{count} proveedor(es)</p>
         </div>
         <button
           onClick={() => setCreating(true)}
@@ -105,6 +117,8 @@ export default function ProveedoresPage() {
           </div>
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {creating && (
         <CreateSupplierModal

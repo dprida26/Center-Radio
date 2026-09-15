@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { Search, UserPlus, Plus, X, Loader2 } from 'lucide-react'
 import { customerService } from '@/services/api'
+import Pagination from '@/components/panel/Pagination'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -11,29 +12,40 @@ function formatGs(value) {
 
 export default function ClientesPage() {
   const [customers, setCustomers] = useState([])
+  const [count, setCount] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     customerService
-      .getAll(search ? { search } : {})
-      .then(setCustomers)
+      .getPage({ page, ...(search ? { search } : {}) })
+      .then((data) => {
+        setCustomers(data.results)
+        setCount(data.count)
+      })
       .finally(() => setLoading(false))
-  }
+  }, [page, search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search])
 
   useEffect(() => {
     const timeout = setTimeout(load, 300)
     return () => clearTimeout(timeout)
-  }, [search])
+  }, [load])
+
+  const totalPages = Math.max(1, Math.ceil(count / 20))
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-500 text-sm mt-1">{customers.length} cliente(s)</p>
+          <p className="text-gray-500 text-sm mt-1">{count} cliente(s)</p>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -110,6 +122,8 @@ export default function ClientesPage() {
           </div>
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {creating && (
         <CreateCustomerModal

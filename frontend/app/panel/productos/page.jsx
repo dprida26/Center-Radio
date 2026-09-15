@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Plus, Pencil, Trash2, X, Loader2, Search, Package, ImagePlus, PackagePlus, History, ArrowUp, ArrowDown, Settings2 } from 'lucide-react'
 import { productService, categoryService, supplierService } from '@/services/api'
+import Pagination from '@/components/panel/Pagination'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -10,6 +11,8 @@ function formatGs(value) {
 
 export default function ProductosPage() {
   const [products, setProducts] = useState([])
+  const [count, setCount] = useState(0)
+  const [page, setPage] = useState(1)
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,10 +27,13 @@ export default function ProductosPage() {
   const load = useCallback(() => {
     setLoading(true)
     productService
-      .getAll({ include_inactive: 1, ...(search ? { search } : {}) })
-      .then(setProducts)
+      .getPage({ page, include_inactive: 1, ...(search ? { search } : {}) })
+      .then((data) => {
+        setProducts(data.results)
+        setCount(data.count)
+      })
       .finally(() => setLoading(false))
-  }, [search])
+  }, [page, search])
 
   useEffect(() => {
     categoryService.getAll().then(setCategories)
@@ -35,9 +41,15 @@ export default function ProductosPage() {
   }, [])
 
   useEffect(() => {
+    setPage(1)
+  }, [search])
+
+  useEffect(() => {
     const timeout = setTimeout(load, 300)
     return () => clearTimeout(timeout)
   }, [load])
+
+  const totalPages = Math.max(1, Math.ceil(count / 20))
 
   const openCreate = () => {
     setEditingProduct(null)
@@ -75,7 +87,7 @@ export default function ProductosPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
-          <p className="text-gray-500 text-sm mt-1">{products.length} producto(s)</p>
+          <p className="text-gray-500 text-sm mt-1">{count} producto(s)</p>
         </div>
         <button
           onClick={openCreate}
@@ -173,6 +185,8 @@ export default function ProductosPage() {
           </div>
         )}
       </div>
+
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       {showForm && (
         <ProductFormModal

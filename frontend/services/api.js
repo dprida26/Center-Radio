@@ -111,6 +111,11 @@ export const productService = {
     }
   },
 
+  getPage: async (params = {}) => {
+    const { data } = await api.get('/products/', { params })
+    return data.results ? data : { results: data, count: data.length, next: null, previous: null }
+  },
+
   getById: async (id) => {
     try {
       const { data } = await api.get(`/products/${id}/`)
@@ -325,6 +330,10 @@ export const customerService = {
     const { data } = await api.get('/customers/', { params })
     return data.results || data
   },
+  getPage: async (params = {}) => {
+    const { data } = await api.get('/customers/', { params })
+    return data.results ? data : { results: data, count: data.length, next: null, previous: null }
+  },
   getById: async (id) => {
     const { data } = await api.get(`/customers/${id}/`)
     return data
@@ -391,6 +400,10 @@ export const supplierService = {
   getAll: async (params = {}) => {
     const { data } = await api.get('/suppliers/', { params })
     return data.results || data
+  },
+  getPage: async (params = {}) => {
+    const { data } = await api.get('/suppliers/', { params })
+    return data.results ? data : { results: data, count: data.length, next: null, previous: null }
   },
   getById: async (id) => {
     const { data } = await api.get(`/suppliers/${id}/`)
@@ -511,6 +524,14 @@ export const orderService = {
   getAll: async (params = {}) => {
     const { data } = await api.get('/orders/', { params })
     return data.results || data
+  },
+  getPage: async (params = {}) => {
+    const { data } = await api.get('/orders/', { params })
+    return data.results ? data : { results: data, count: data.length, next: null, previous: null }
+  },
+  getPendingCount: async () => {
+    const { data } = await api.get('/orders/pending_count/')
+    return data.count
   },
   getById: async (id) => {
     const { data } = await api.get(`/orders/${id}/`)

@@ -574,6 +574,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_param)
         return qs
 
+    @action(detail=False, methods=['get'])
+    def pending_count(self, request):
+        count = Order.objects.filter(status=Order.STATUS_PENDING).count()
+        return Response({'count': count})
+
     @action(detail=True, methods=['post'])
     def set_status(self, request, pk=None):
         order = self.get_object()
