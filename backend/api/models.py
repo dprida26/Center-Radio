@@ -423,6 +423,70 @@ class Installment(models.Model):
         from django.utils import timezone
         return self.status == self.STATUS_PENDING and self.due_date < timezone.now().date()
 
+    @property
+    def paid_so_far(self):
+        total = self.payments.aggregate(total=models.Sum('amount'))['total']
+        return total or Decimal('0')
+
+    @property
+    def remaining_amount(self):
+        remaining = self.amount - self.paid_so_far
+        return remaining if remaining > 0 else Decimal('0')
+
+    def register_payment(self, amount, payment_date=None, created_by=None):
+        """
+        Registra un abono contra esta cuota. Si el monto supera el saldo
+        pendiente, el excedente se aplica automáticamente como pago
+        adelantado a la siguiente cuota pendiente de la misma venta
+        (respetando el orden de pago consecutivo).
+        Devuelve (cuotas_afectadas, sobrante_sin_aplicar): la lista de cuotas
+        tocadas (esta y, si aplica, las siguientes cubiertas con el
+        excedente) y el monto que no se pudo aplicar porque ya no quedan
+        cuotas pendientes en la venta (venta ya saldada por completo).
+        """
+        from django.utils import timezone
+        payment_date = payment_date or timezone.now().date()
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValueError('El monto del pago debe ser mayor a cero.')
+
+        affected = [self]
+        remaining_to_apply = amount
+        current = self
+
+        while remaining_to_apply > 0 and current is not None:
+            owed = current.remaining_amount
+            applied = min(owed, remaining_to_apply)
+            InstallmentPayment.objects.create(
+                installment=current,
+                amount=applied,
+                payment_date=payment_date,
+                created_by=created_by,
+                note='' if current is self else f'Excedente aplicado de la cuota {self.number}',
+            )
+            remaining_to_apply -= applied
+
+            if current.remaining_amount <= 0:
+                current.status = self.STATUS_PAID
+                current.paid_date = payment_date
+                current.paid_amount = current.paid_so_far
+                current.save()
+
+                if remaining_to_apply > 0:
+                    current = Installment.objects.filter(
+                        sale=current.sale, number__gt=current.number,
+                    ).exclude(status=self.STATUS_PAID).order_by('number').first()
+                    if current:
+                        affected.append(current)
+                    continue
+            else:
+                current.paid_amount = current.paid_so_far
+                current.save()
+
+            break
+
+        return affected, remaining_to_apply
+
     def mark_as_paid(self, paid_date=None, paid_amount=None):
         from django.utils import timezone
         self.status = self.STATUS_PAID
@@ -432,10 +496,28 @@ class Installment(models.Model):
 
     def revert_payment(self):
         from django.utils import timezone
+        self.payments.all().delete()
         self.status = self.STATUS_OVERDUE if self.due_date < timezone.now().date() else self.STATUS_PENDING
         self.paid_date = None
         self.paid_amount = None
         self.save()
+
+
+class InstallmentPayment(models.Model):
+    installment = models.ForeignKey(Installment, on_delete=models.CASCADE, related_name='payments', verbose_name='Cuota')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto Abonado')
+    payment_date = models.DateField(verbose_name='Fecha de Pago')
+    created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Registrado por')
+    note = models.CharField(max_length=200, blank=True, verbose_name='Nota')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
+
+    class Meta:
+        ordering = ['installment', 'created_at']
+        verbose_name = 'Abono de Cuota'
+        verbose_name_plural = 'Abonos de Cuotas'
+
+    def __str__(self):
+        return f'Abono Gs. {self.amount} - Cuota {self.installment_id} ({self.payment_date})'
 
 
 class PurchaseInvoice(models.Model):

@@ -46,20 +46,22 @@ class Command(BaseCommand):
         with transaction.atomic():
             sid = transaction.savepoint()
 
-            for p in productos:
-                if dry_run:
-                    stats['productos_creados'] += 1
-                    continue
-
-                Product.objects.create(
-                    name=p['name'],
-                    description=f"Migrado desde inventario legado (código {p['legacy_code']}).",
-                    price=0,
-                    category=category,
-                    stock=p['stock'],
-                    is_active=False,
-                )
-                stats['productos_creados'] += 1
+            if dry_run:
+                stats['productos_creados'] = len(productos)
+            else:
+                product_objs = [
+                    Product(
+                        name=p['name'],
+                        description=f"Migrado desde inventario legado (código {p['legacy_code']}).",
+                        price=0,
+                        category=category,
+                        stock=p['stock'],
+                        is_active=False,
+                    )
+                    for p in productos
+                ]
+                Product.objects.bulk_create(product_objs, batch_size=500)
+                stats['productos_creados'] = len(product_objs)
 
             if dry_run:
                 transaction.savepoint_rollback(sid)

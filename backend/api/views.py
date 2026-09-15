@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.db.models import Q, Sum, Count, F
 from django.db.models.functions import TruncMonth, TruncDay, TruncWeek
 from datetime import date, timedelta
+from decimal import Decimal
 from .models import (
     Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, Expense, AuditLog,
     Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
@@ -364,14 +365,30 @@ class InstallmentViewSet(viewsets.ModelViewSet):
                 {'error': 'No se puede pagar esta cuota sin antes pagar las cuotas anteriores.'},
                 status=400,
             )
-        paid_amount = request.data.get('paid_amount')
-        installment.mark_as_paid(paid_amount=paid_amount)
-        log_action(
-            request.user, AuditLog.ACTION_CUSTOM, installment,
-            description=f'Marcó como pagada la cuota {installment.number} (Gs. {installment.paid_amount})',
-        )
+
+        raw_amount = request.data.get('paid_amount')
+        amount = Decimal(str(raw_amount)) if raw_amount not in (None, '') else installment.remaining_amount or installment.amount
+
+        try:
+            affected, sobrante = installment.register_payment(amount=amount, created_by=request.user)
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+
+        installment.refresh_from_db()
+        if len(affected) > 1:
+            desc = f'Registró un abono de Gs. {amount} en la cuota {installment.number}, con excedente aplicado a {len(affected) - 1} cuota(s) siguiente(s).'
+        elif installment.status == Installment.STATUS_PAID:
+            desc = f'Marcó como pagada la cuota {installment.number} (Gs. {amount}).'
+        else:
+            desc = f'Registró un abono parcial de Gs. {amount} en la cuota {installment.number} (saldo restante: Gs. {installment.remaining_amount}).'
+        log_action(request.user, AuditLog.ACTION_CUSTOM, installment, description=desc)
+
         serializer = self.get_serializer(installment)
-        return Response(serializer.data)
+        return Response({
+            **serializer.data,
+            'affected_installments': [a.id for a in affected],
+            'overpaid_unapplied': str(sobrante) if sobrante > 0 else None,
+        })
 
     @action(detail=True, methods=['post'])
     def revert_payment(self, request, pk=None):

@@ -50,13 +50,18 @@ export default function ClienteDetallePage() {
     load()
   }, [load])
 
-  const handleConfirmPayment = async () => {
+  const handleConfirmPayment = async (amount) => {
     if (!confirmTarget) return
     setBusyId(confirmTarget.id)
     try {
-      await installmentService.markPaid(confirmTarget.id, confirmTarget.amount)
+      const result = await installmentService.markPaid(confirmTarget.id, amount)
       load()
       setConfirmTarget(null)
+      if (result.overpaid_unapplied) {
+        alert(`Se registró el pago. Sobraron Gs. ${Math.round(parseFloat(result.overpaid_unapplied)).toLocaleString('es-PY')} que no se pudieron aplicar porque ya no quedan cuotas pendientes en esta venta.`)
+      } else if (result.affected_installments?.length > 1) {
+        alert(`Pago registrado. El excedente se aplicó automáticamente a ${result.affected_installments.length - 1} cuota(s) siguiente(s).`)
+      }
     } catch (err) {
       alert(err?.response?.data?.error || 'No se pudo registrar el pago.')
     } finally {
@@ -533,31 +538,60 @@ function EditCustomerModal({ customer, onCancel, onSaved }) {
 }
 
 function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
+  const remaining = parseFloat(installment.remaining_amount ?? installment.amount)
+  const [amount, setAmount] = useState(String(Math.round(remaining)))
+
+  const numericAmount = parseFloat(amount) || 0
+  const diff = numericAmount - remaining
+  const isPartial = numericAmount > 0 && numericAmount < remaining
+  const isOverpaid = numericAmount > remaining
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
         <div className="flex items-start justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Confirmar pago</h3>
+          <h3 className="text-lg font-bold text-gray-900">Registrar pago</h3>
           <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
             <X size={18} />
           </button>
         </div>
 
-        <p className="text-sm text-gray-600 mb-4">
-          Vas a marcar la <strong>cuota {installment.number}</strong> como pagada. Esta acción se puede
-          deshacer luego si te equivocás.
-        </p>
-
-        <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm mb-5">
+        <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm mb-4">
           <div className="flex justify-between">
-            <span className="text-gray-500">Monto</span>
-            <span className="font-semibold text-gray-900">{formatGs(installment.amount)}</span>
+            <span className="text-gray-500">Cuota</span>
+            <span className="font-medium text-gray-700">{installment.number}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Saldo pendiente</span>
+            <span className="font-semibold text-gray-900">{formatGs(remaining)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Vencimiento</span>
             <span className="font-medium text-gray-700">{installment.due_date}</span>
           </div>
         </div>
+
+        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Monto a registrar</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          autoFocus
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+        />
+
+        {isPartial && (
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+            Pago parcial: quedará un saldo de {formatGs(remaining - numericAmount)} pendiente en esta cuota.
+          </p>
+        )}
+        {isOverpaid && (
+          <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4">
+            El excedente de {formatGs(diff)} se aplicará automáticamente a la siguiente cuota pendiente.
+          </p>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -568,8 +602,8 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
             Cancelar
           </button>
           <button
-            onClick={onConfirm}
-            disabled={busy}
+            onClick={() => onConfirm(numericAmount)}
+            disabled={busy || numericAmount <= 0}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
           >
             {busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
@@ -614,7 +648,14 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                 <tr key={inst.id} className="border-b last:border-0">
                   <td className="py-2">{inst.number}</td>
                   <td className="py-2">{inst.due_date}</td>
-                  <td className="py-2 text-right">{formatGs(inst.amount)}</td>
+                  <td className="py-2 text-right">
+                    {formatGs(inst.amount)}
+                    {inst.status !== 'PAID' && parseFloat(inst.paid_so_far) > 0 && (
+                      <div className="text-xs text-amber-600 font-medium">
+                        Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
+                      </div>
+                    )}
+                  </td>
                   <td className="py-2 text-center">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusInfo.className}`}>
                       {statusInfo.label}
@@ -648,7 +689,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                         className="flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-900 disabled:opacity-50 ml-auto"
                       >
                         <CheckCircle2 size={14} />
-                        Marcar pagada
+                        Registrar pago
                       </button>
                     )}
                   </td>

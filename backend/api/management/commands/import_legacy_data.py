@@ -69,8 +69,19 @@ class Command(BaseCommand):
                 },
             )
 
+        # una sola query para traer todos los clientes existentes por CI,
+        # en vez de una query por cliente (crítico con latencia de red alta)
+        docs_csv = {(c['document_number'] or '').strip() for c in clientes if (c['document_number'] or '').strip()}
+        existentes = {
+            cust.document_number: cust
+            for cust in Customer.objects.filter(document_number__in=docs_csv)
+        }
+
         with transaction.atomic():
             sid = transaction.savepoint()
+
+            nuevos_customers = []
+            ventas_a_crear = []  # lista de (doc, sale_kwargs, installments_data)
 
             for c in clientes:
                 doc = (c['document_number'] or '').strip()
@@ -80,7 +91,7 @@ class Command(BaseCommand):
                     stats['clientes_omitidos_sin_ci'] += 1
                     continue
 
-                existing = Customer.objects.filter(document_number=doc).first()
+                existing = existentes.get(doc)
                 if existing and existing.full_name.strip().upper() != nombre.upper():
                     stats['ci_duplicado_distinto_nombre'].append({
                         'document_number': doc,
@@ -88,17 +99,14 @@ class Command(BaseCommand):
                         'nombre_existente': existing.full_name,
                     })
 
-                if dry_run:
-                    if existing:
-                        stats['clientes_existentes'] += 1
-                    else:
-                        stats['clientes_nuevos'] += 1
+                if existing:
+                    stats['clientes_existentes'] += 1
                 else:
-                    customer, created = Customer.objects.get_or_create(
-                        document_number=doc,
-                        defaults={'full_name': nombre},
-                    )
-                    stats['clientes_nuevos' if created else 'clientes_existentes'] += 1
+                    stats['clientes_nuevos'] += 1
+                    nuevo = Customer(document_number=doc, full_name=nombre)
+                    existentes[doc] = nuevo  # evita duplicados si el mismo CI se repite en el propio archivo
+                    if not dry_run:
+                        nuevos_customers.append(nuevo)
 
                 for s in c['sales']:
                     installment_count = s['installment_count']
@@ -114,13 +122,26 @@ class Command(BaseCommand):
                         })
                         continue
 
-                    if dry_run:
-                        stats['ventas_creadas'] += 1
-                        stats['cuotas_creadas'] += len(s['installments'])
-                        continue
+                    stats['ventas_creadas'] += 1
+                    stats['cuotas_creadas'] += len(s['installments'])
 
-                    sale = Sale.objects.create(
-                        customer=customer,
+                    if not dry_run:
+                        ventas_a_crear.append((doc, s, unit_price, installment_count))
+
+            if not dry_run:
+                # bulk_create de clientes nuevos, luego releer para tener sus IDs
+                if nuevos_customers:
+                    Customer.objects.bulk_create(nuevos_customers)
+                todos_customers = {
+                    cust.document_number: cust
+                    for cust in Customer.objects.filter(document_number__in=docs_csv)
+                }
+
+                sales_objs = []
+                sales_meta = []  # (installments_data) alineado con sales_objs
+                for doc, s, unit_price, installment_count in ventas_a_crear:
+                    sales_objs.append(Sale(
+                        customer=todos_customers[doc],
                         product=product,
                         quantity=1,
                         unit_price=unit_price,
@@ -129,11 +150,15 @@ class Command(BaseCommand):
                         interest_rate=0,
                         sale_date=s['sale_date'],
                         notes=f"Migrado desde sistema legado — comprobante {s['comprobante']}",
-                    )
-                    stats['ventas_creadas'] += 1
+                    ))
+                    sales_meta.append(s['installments'])
 
-                    for ins in s['installments']:
-                        Installment.objects.create(
+                created_sales = Sale.objects.bulk_create(sales_objs)
+
+                installment_objs = []
+                for sale, installments in zip(created_sales, sales_meta):
+                    for ins in installments:
+                        installment_objs.append(Installment(
                             sale=sale,
                             number=ins['number'],
                             amount=to_decimal(ins['amount']),
@@ -141,8 +166,8 @@ class Command(BaseCommand):
                             status=ins['status'],
                             paid_date=ins['paid_date'],
                             paid_amount=to_decimal(ins['paid_amount']),
-                        )
-                        stats['cuotas_creadas'] += 1
+                        ))
+                Installment.objects.bulk_create(installment_objs, batch_size=1000)
 
             if dry_run:
                 transaction.savepoint_rollback(sid)

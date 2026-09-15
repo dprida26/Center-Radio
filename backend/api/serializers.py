@@ -145,13 +145,15 @@ class InstallmentSerializer(serializers.ModelSerializer):
     # Solo lectura: el estado real se calcula en get_status. Un PATCH con "status" en el
     # body se ignora en silencio; usar las acciones mark_paid/revert_payment del viewset.
     status = serializers.SerializerMethodField()
+    remaining_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = Installment
         fields = [
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'customer_name', 'customer_id', 'customer_document', 'customer_phone', 'product_name',
-            'installment_count', 'sale_date',
+            'installment_count', 'sale_date', 'remaining_amount', 'paid_so_far',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date']
 

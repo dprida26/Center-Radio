@@ -3,8 +3,8 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Sum
 from .models import (
-    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem,
-    Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, InstallmentPayment,
+    Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
 )
 
 @admin.register(Category)
@@ -359,6 +359,13 @@ class OrderAdmin(admin.ModelAdmin):
     total_amount_display.short_description = 'Monto Total'
 
 
+class InstallmentPaymentInline(admin.TabularInline):
+    model = InstallmentPayment
+    extra = 0
+    readonly_fields = ['amount', 'payment_date', 'created_by', 'note', 'created_at']
+    can_delete = False
+
+
 @admin.register(Installment)
 class InstallmentAdmin(admin.ModelAdmin):
     list_display = ['customer_name', 'sale', 'number', 'amount_display', 'due_date', 'status', 'paid_date']
@@ -367,6 +374,7 @@ class InstallmentAdmin(admin.ModelAdmin):
     date_hierarchy = 'due_date'
     list_per_page = 25
     actions = ['mark_as_paid']
+    inlines = [InstallmentPaymentInline]
 
     def customer_name(self, obj):
         return obj.sale.customer.full_name
