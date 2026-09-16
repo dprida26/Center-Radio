@@ -4,7 +4,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from api.models import Category, Customer, Installment, Product, Sale
+from api.models import Category, Customer, Installment, Product, Sale, SaleItem
 
 
 PRODUCT_NAME = 'Migración - Histórico'
@@ -138,25 +138,27 @@ class Command(BaseCommand):
                 }
 
                 sales_objs = []
-                sales_meta = []  # (installments_data) alineado con sales_objs
+                sales_meta = []  # (unit_price, installments_data) alineado con sales_objs
                 for doc, s, unit_price, installment_count in ventas_a_crear:
                     sales_objs.append(Sale(
                         customer=todos_customers[doc],
-                        product=product,
-                        quantity=1,
-                        unit_price=unit_price,
                         payment_type=Sale.PAYMENT_INSTALLMENTS,
                         installment_count=installment_count,
                         interest_rate=0,
                         sale_date=s['sale_date'],
                         notes=f"Migrado desde sistema legado — comprobante {s['comprobante']}",
                     ))
-                    sales_meta.append(s['installments'])
+                    sales_meta.append((unit_price, s['installments']))
 
                 created_sales = Sale.objects.bulk_create(sales_objs)
 
+                SaleItem.objects.bulk_create([
+                    SaleItem(sale=sale, product=product, quantity=1, unit_price=unit_price)
+                    for sale, (unit_price, _) in zip(created_sales, sales_meta)
+                ])
+
                 installment_objs = []
-                for sale, installments in zip(created_sales, sales_meta):
+                for sale, (_, installments) in zip(created_sales, sales_meta):
                     for ins in installments:
                         installment_objs.append(Installment(
                             sale=sale,

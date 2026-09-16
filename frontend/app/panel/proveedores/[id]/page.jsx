@@ -24,6 +24,7 @@ export default function ProveedorDetallePage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
   const [confirmTarget, setConfirmTarget] = useState(null)
+  const [revertTarget, setRevertTarget] = useState(null)
   const [editing, setEditing] = useState(false)
   const [productsOpen, setProductsOpen] = useState(true)
 
@@ -42,13 +43,18 @@ export default function ProveedorDetallePage() {
     load()
   }, [load])
 
-  const handleConfirmPayment = async () => {
+  const handleConfirmPayment = async (amount) => {
     if (!confirmTarget) return
     setBusyId(confirmTarget.id)
     try {
-      await purchaseInstallmentService.markPaid(confirmTarget.id, confirmTarget.amount)
+      const result = await purchaseInstallmentService.markPaid(confirmTarget.id, amount)
       load()
       setConfirmTarget(null)
+      if (result.overpaid_unapplied && parseFloat(result.overpaid_unapplied) > 0) {
+        alert(`Se registró el pago. Sobraron Gs. ${Math.round(parseFloat(result.overpaid_unapplied)).toLocaleString('es-PY')} que no se pudieron aplicar porque ya no quedan cuotas pendientes en esta compra.`)
+      } else if (result.affected_installments?.length > 1) {
+        alert(`Pago registrado. El excedente se aplicó automáticamente a ${result.affected_installments.length - 1} cuota(s) siguiente(s).`)
+      }
     } catch (err) {
       alert(err?.response?.data?.error || 'No se pudo registrar el pago.')
     } finally {
@@ -56,11 +62,13 @@ export default function ProveedorDetallePage() {
     }
   }
 
-  const handleRevert = async (installmentId) => {
-    setBusyId(installmentId)
+  const handleConfirmRevert = async () => {
+    if (!revertTarget) return
+    setBusyId(revertTarget.id)
     try {
-      await purchaseInstallmentService.revertPayment(installmentId)
+      await purchaseInstallmentService.revertPayment(revertTarget.id)
       load()
+      setRevertTarget(null)
     } finally {
       setBusyId(null)
     }
@@ -105,9 +113,13 @@ export default function ProveedorDetallePage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500 uppercase font-semibold">Deuda Pendiente</p>
-            <p className={`text-2xl font-bold ${parseFloat(supplier.total_owed) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {formatGs(supplier.total_owed)}
+            <p className="text-xs text-gray-500 uppercase font-semibold">Deuda Original</p>
+            <p className="text-lg font-semibold text-gray-500">
+              {formatGs(supplier.total_credit_purchases)}
+            </p>
+            <p className="text-xs text-gray-500 uppercase font-semibold mt-2">Saldo Pendiente</p>
+            <p className={`text-2xl font-bold ${parseFloat(supplier.total_owed_remaining) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {formatGs(supplier.total_owed_remaining)}
             </p>
             {supplier.overdue_count > 0 && (
               <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
@@ -192,7 +204,7 @@ export default function ProveedorDetallePage() {
                 key={purchase.id}
                 purchase={purchase}
                 onRequestMarkPaid={setConfirmTarget}
-                onRevert={handleRevert}
+                onRevert={setRevertTarget}
                 busyId={busyId}
                 defaultOpen={index === 0}
               />
@@ -207,6 +219,15 @@ export default function ProveedorDetallePage() {
           busy={busyId === confirmTarget.id}
           onCancel={() => setConfirmTarget(null)}
           onConfirm={handleConfirmPayment}
+        />
+      )}
+
+      {revertTarget && (
+        <ConfirmRevertModal
+          installment={revertTarget}
+          busy={busyId === revertTarget.id}
+          onCancel={() => setRevertTarget(null)}
+          onConfirm={handleConfirmRevert}
         />
       )}
 
@@ -360,31 +381,110 @@ function EditSupplierModal({ supplier, onCancel, onSaved }) {
 }
 
 function ConfirmSupplierPaymentModal({ installment, busy, onCancel, onConfirm }) {
+  const remaining = parseFloat(installment.remaining_amount ?? installment.amount)
+  const [amount, setAmount] = useState(String(Math.round(remaining)))
+
+  const numericAmount = parseFloat(amount) || 0
+  const diff = numericAmount - remaining
+  const isPartial = numericAmount > 0 && numericAmount < remaining
+  const isOverpaid = numericAmount > remaining
+
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
       <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
         <div className="flex items-start justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Confirmar pago</h3>
+          <h3 className="text-lg font-bold text-gray-900">Registrar pago</h3>
           <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
             <X size={18} />
           </button>
         </div>
 
-        <p className="text-sm text-gray-600 mb-4">
-          Vas a marcar la <strong>cuota {installment.number}</strong> como pagada al proveedor. Esto
-          registrará automáticamente un gasto de mercadería. Esta acción se puede deshacer luego si te equivocás.
-        </p>
-
-        <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm mb-5">
+        <div className="bg-gray-50 rounded-lg p-4 space-y-1 text-sm mb-4">
           <div className="flex justify-between">
-            <span className="text-gray-500">Monto</span>
-            <span className="font-semibold text-gray-900">{formatGs(installment.amount)}</span>
+            <span className="text-gray-500">Cuota</span>
+            <span className="font-medium text-gray-700">{installment.number}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Saldo pendiente</span>
+            <span className="font-semibold text-gray-900">{formatGs(remaining)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Vencimiento</span>
             <span className="font-medium text-gray-700">{installment.due_date}</span>
           </div>
         </div>
+
+        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Monto a registrar</label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          autoFocus
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+        />
+
+        {isPartial && (
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+            Pago parcial: quedará un saldo de {formatGs(remaining - numericAmount)} pendiente en esta cuota.
+          </p>
+        )}
+        {isOverpaid && (
+          <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4">
+            El excedente de {formatGs(diff)} se aplicará automáticamente a la siguiente cuota pendiente.
+          </p>
+        )}
+        {!isPartial && !isOverpaid && numericAmount > 0 && (
+          <p className="text-xs text-gray-500 mb-4">
+            Se registrará automáticamente un gasto de mercadería por este pago.
+          </p>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onConfirm(numericAmount)}
+            disabled={busy || numericAmount <= 0}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            {busy ? 'Guardando...' : 'Confirmar pago'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ConfirmRevertModal({ installment, busy, onCancel, onConfirm }) {
+  const isPartial = installment.status !== 'PAID'
+  const amountToUndo = isPartial ? installment.paid_so_far : installment.paid_amount
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">
+            {isPartial ? 'Deshacer abono' : 'Deshacer pago'}
+          </h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          {isPartial
+            ? <>Vas a borrar el abono de <strong>{formatGs(amountToUndo)}</strong> registrado en la cuota {installment.number}. La cuota volverá a quedar sin ningún pago y se eliminará el/los gasto(s) de mercadería generado(s).</>
+            : <>Vas a revertir el pago de la cuota {installment.number}. Volverá a quedar pendiente y se eliminará el gasto de mercadería generado.</>}
+          {' '}Esta acción no se puede deshacer.
+        </p>
 
         <div className="flex gap-3">
           <button
@@ -397,10 +497,10 @@ function ConfirmSupplierPaymentModal({ installment, busy, onCancel, onConfirm })
           <button
             onClick={onConfirm}
             disabled={busy}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
           >
-            {busy ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-            {busy ? 'Guardando...' : 'Confirmar pago'}
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            {busy ? 'Deshaciendo...' : 'Sí, deshacer'}
           </button>
         </div>
       </div>
@@ -429,7 +529,12 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <p className="font-bold text-gray-900">{formatGs(purchase.total_amount)}</p>
+          <div className="text-right">
+            <p className="font-bold text-gray-900">{formatGs(purchase.total_amount)}</p>
+            {!isCash && parseFloat(purchase.remaining_amount) > 0 && (
+              <p className="text-xs text-amber-600 font-medium">Saldo: {formatGs(purchase.remaining_amount)}</p>
+            )}
+          </div>
           {open ? (
             <ChevronUp size={18} className="text-gray-400" />
           ) : (
@@ -483,7 +588,14 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
                     <tr key={inst.id} className="border-b last:border-0">
                       <td className="py-2 pr-3 whitespace-nowrap">{inst.number}</td>
                       <td className="py-2 pr-3 whitespace-nowrap">{inst.due_date}</td>
-                      <td className="py-2 pr-3 text-right whitespace-nowrap">{formatGs(inst.amount)}</td>
+                      <td className="py-2 pr-3 text-right whitespace-nowrap">
+                        {formatGs(inst.amount)}
+                        {inst.status !== 'PAID' && parseFloat(inst.paid_so_far) > 0 && (
+                          <div className="text-xs text-amber-600 font-medium">
+                            Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 pr-3 text-center whitespace-nowrap">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusInfo.className}`}>
                           {statusInfo.label}
@@ -501,7 +613,7 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
                               Comprobante
                             </Link>
                             <button
-                              onClick={() => onRevert(inst.id)}
+                              onClick={() => onRevert(inst)}
                               disabled={isBusy}
                               className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50"
                               title="Revertir a pendiente"
@@ -511,14 +623,27 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
                             </button>
                           </div>
                         ) : (
-                          <button
-                            onClick={() => onRequestMarkPaid(inst)}
-                            disabled={isBusy}
-                            className="flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-900 disabled:opacity-50 ml-auto"
-                          >
-                            <CheckCircle2 size={14} />
-                            Marcar pagada
-                          </button>
+                          <div className="flex items-center justify-end gap-3">
+                            {parseFloat(inst.paid_so_far) > 0 && (
+                              <button
+                                onClick={() => onRevert(inst)}
+                                disabled={isBusy}
+                                className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50"
+                                title="Deshacer el abono parcial registrado"
+                              >
+                                <RotateCcw size={14} />
+                                {isBusy ? 'Deshaciendo...' : 'Deshacer abono'}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => onRequestMarkPaid(inst)}
+                              disabled={isBusy}
+                              className="flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-900 disabled:opacity-50"
+                            >
+                              <CheckCircle2 size={14} />
+                              Registrar pago
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>

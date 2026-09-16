@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { productService } from '@/services/api'
 import ProductCard from './ProductCard'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -9,15 +9,25 @@ const PAGE_SIZE = 12
 
 export default function ProductGrid({ searchQuery = '', filters = {} }) {
   const [products, setProducts] = useState([])
+  const [count, setCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [page, setPage] = useState(1)
+  const filtersKey = JSON.stringify(filters)
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchQuery, filtersKey])
 
   useEffect(() => {
     const fetchProducts = async () => {
+      setLoading(true)
       try {
-        const data = await productService.getAll(filters)
-        setProducts(Array.isArray(data) ? data : [])
+        const params = { ...filters, page, page_size: PAGE_SIZE }
+        if (searchQuery.trim()) params.search = searchQuery.trim()
+        const data = await productService.getPage(params)
+        setProducts(data.results || [])
+        setCount(data.count || 0)
       } catch (err) {
         setError(`Error al cargar productos: ${err.message}`)
         console.error('Error fetching products:', err)
@@ -27,35 +37,22 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
     }
 
     fetchProducts()
-  }, [filters])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtersKey, searchQuery, page])
 
-  const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return products
-
-    const query = searchQuery.toLowerCase()
-    return products.filter((product) =>
-      product.name.toLowerCase().includes(query) ||
-      product.brand.toLowerCase().includes(query) ||
-      product.model.toLowerCase().includes(query) ||
-      product.category_name.toLowerCase().includes(query)
-    )
-  }, [products, searchQuery])
-
-  useEffect(() => {
-    setPage(1)
-  }, [searchQuery, filters])
-
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE
-    return filteredProducts.slice(start, start + PAGE_SIZE)
-  }, [filteredProducts, currentPage])
+  const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE))
 
   const goToPage = (p) => {
     setPage(p)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  const visiblePages = (() => {
+    const delta = 2
+    const start = Math.max(1, page - delta)
+    const end = Math.min(totalPages, page + delta)
+    return Array.from({ length: end - start + 1 }, (_, i) => start + i)
+  })()
 
   if (loading) {
     return (
@@ -76,19 +73,17 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
     )
   }
 
-  if (products.length === 0) {
+  if (count === 0) {
     return (
       <div className="text-center py-16">
-        <p className="text-gray-600 text-lg">No hay productos disponibles</p>
-      </div>
-    )
-  }
-
-  if (filteredProducts.length === 0) {
-    return (
-      <div className="text-center py-16">
-        <p className="text-gray-600 text-lg">No encontramos productos que coincidan con "<span className="font-semibold">{searchQuery}</span>"</p>
-        <p className="text-gray-500 text-sm mt-2">Intenta con otro término de búsqueda</p>
+        {searchQuery.trim() ? (
+          <>
+            <p className="text-gray-600 text-lg">No encontramos productos que coincidan con "<span className="font-semibold">{searchQuery}</span>"</p>
+            <p className="text-gray-500 text-sm mt-2">Intenta con otro término de búsqueda</p>
+          </>
+        ) : (
+          <p className="text-gray-600 text-lg">No hay productos disponibles</p>
+        )}
       </div>
     )
   }
@@ -96,10 +91,10 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
   return (
     <>
       <p className="text-sm text-gray-600 mb-6">
-        Mostrando <span className="font-bold text-gray-900">{paginatedProducts.length}</span> de <span className="font-bold text-gray-900">{filteredProducts.length}</span> productos
+        Mostrando <span className="font-bold text-gray-900">{products.length}</span> de <span className="font-bold text-gray-900">{count}</span> productos
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {paginatedProducts.map((product) => (
+        {products.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
@@ -107,20 +102,32 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-10">
           <button
-            onClick={() => goToPage(currentPage - 1)}
-            disabled={currentPage === 1}
+            onClick={() => goToPage(page - 1)}
+            disabled={page === 1}
             className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
             aria-label="Página anterior"
           >
             <ChevronLeft size={18} />
           </button>
 
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+          {visiblePages[0] > 1 && (
+            <>
+              <button
+                onClick={() => goToPage(1)}
+                className="w-9 h-9 rounded-lg text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-white hover:shadow-sm transition"
+              >
+                1
+              </button>
+              {visiblePages[0] > 2 && <span className="text-gray-400 px-1">…</span>}
+            </>
+          )}
+
+          {visiblePages.map((p) => (
             <button
               key={p}
               onClick={() => goToPage(p)}
               className={`w-9 h-9 rounded-lg text-sm font-semibold transition ${
-                p === currentPage
+                p === page
                   ? 'bg-primary text-graphite-dark shadow-md'
                   : 'border border-gray-200 text-gray-600 hover:bg-white hover:shadow-sm'
               }`}
@@ -129,9 +136,21 @@ export default function ProductGrid({ searchQuery = '', filters = {} }) {
             </button>
           ))}
 
+          {visiblePages[visiblePages.length - 1] < totalPages && (
+            <>
+              {visiblePages[visiblePages.length - 1] < totalPages - 1 && <span className="text-gray-400 px-1">…</span>}
+              <button
+                onClick={() => goToPage(totalPages)}
+                className="w-9 h-9 rounded-lg text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-white hover:shadow-sm transition"
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+
           <button
-            onClick={() => goToPage(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            onClick={() => goToPage(page + 1)}
+            disabled={page === totalPages}
             className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-40 disabled:cursor-not-allowed transition"
             aria-label="Página siguiente"
           >

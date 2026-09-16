@@ -275,12 +275,12 @@ class Sale(models.Model):
     ]
 
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='sales', verbose_name='Cliente')
-    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sales', verbose_name='Producto')
-    quantity = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
-    unit_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Precio Unitario')
     payment_type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES, default=PAYMENT_CASH, verbose_name='Tipo de Pago')
     installment_count = models.PositiveIntegerField(default=1, verbose_name='Cantidad de Cuotas')
     interest_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Tasa de Interés (%)')
+    down_payment = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Entrega Inicial')
+    payment_day = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='Día de Pago Mensual')
+    late_fee_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Interés por Mora (%)')
     sale_date = models.DateField(verbose_name='Fecha de Venta')
     notes = models.TextField(blank=True, verbose_name='Notas')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
@@ -292,24 +292,40 @@ class Sale(models.Model):
         verbose_name_plural = 'Ventas'
 
     def __str__(self):
-        return f'Venta #{self.id} - {self.customer.full_name} - {self.product.name}'
+        return f'Venta #{self.id} - {self.customer.full_name}'
+
+    @property
+    def subtotal(self):
+        return sum((item.subtotal for item in self.items.all()), Decimal('0'))
 
     @property
     def total_amount(self):
-        subtotal = self.unit_price * self.quantity
+        subtotal = self.subtotal
         if self.payment_type == self.PAYMENT_INSTALLMENTS:
             return round(subtotal * (1 + self.interest_rate / Decimal('100')), 2)
         return subtotal
 
+    @property
+    def remaining_amount(self):
+        if self.payment_type != self.PAYMENT_INSTALLMENTS:
+            return Decimal('0')
+        if 'installments' in getattr(self, '_prefetched_objects_cache', {}):
+            return sum((i.remaining_amount for i in self.installments.all()), Decimal('0'))
+        pending = self.installments.exclude(status=Installment.STATUS_PAID)
+        return sum((i.remaining_amount for i in pending), Decimal('0'))
+
     def generate_installments(self):
         from dateutil.relativedelta import relativedelta
+        import calendar
 
         self.installments.all().delete()
 
         if self.payment_type != self.PAYMENT_INSTALLMENTS or self.installment_count < 1:
             return
 
-        total = self.total_amount
+        total = self.total_amount - self.down_payment
+        if total < 0:
+            total = Decimal('0')
         base_amount = (total / self.installment_count).quantize(Decimal('0.01'))
         remainder = total - (base_amount * self.installment_count)
 
@@ -317,12 +333,34 @@ class Sale(models.Model):
             amount = base_amount
             if i == self.installment_count:
                 amount += remainder
+            due_date = self.sale_date + relativedelta(months=i)
+            if self.payment_day:
+                last_day = calendar.monthrange(due_date.year, due_date.month)[1]
+                due_date = due_date.replace(day=min(self.payment_day, last_day))
             Installment.objects.create(
                 sale=self,
                 number=i,
                 amount=amount,
-                due_date=self.sale_date + relativedelta(months=i),
+                due_date=due_date,
             )
+
+
+class SaleItem(models.Model):
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='items', verbose_name='Venta')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='sale_items', verbose_name='Producto')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    unit_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Precio Unitario')
+
+    class Meta:
+        verbose_name = 'Ítem de Venta'
+        verbose_name_plural = 'Ítems de Venta'
+
+    def __str__(self):
+        return f'{self.quantity} x {self.product.name}'
+
+    @property
+    def subtotal(self):
+        return self.unit_price * self.quantity
 
 
 class Order(models.Model):
@@ -438,6 +476,30 @@ class Installment(models.Model):
         remaining = self.amount - self.paid_so_far
         return remaining if remaining > 0 else Decimal('0')
 
+    @property
+    def late_fee_amount(self):
+        """Recargo por mora sobre el saldo pendiente, calculado en el momento
+        (no se persiste): tasa mensual de la venta prorrateada por los días
+        de atraso desde el vencimiento."""
+        from django.utils import timezone
+
+        rate = self.sale.late_fee_rate
+        if not rate or self.status == self.STATUS_PAID:
+            return Decimal('0')
+
+        today = timezone.now().date()
+        if self.due_date >= today:
+            return Decimal('0')
+
+        days_late = (today - self.due_date).days
+        months_late = Decimal(days_late) / Decimal('30')
+        fee = self.remaining_amount * (rate / Decimal('100')) * months_late
+        return fee.quantize(Decimal('0.01'))
+
+    @property
+    def total_with_late_fee(self):
+        return self.remaining_amount + self.late_fee_amount
+
     def register_payment(self, amount, payment_date=None, created_by=None):
         """
         Registra un abono contra esta cuota. Si el monto supera el saldo
@@ -470,6 +532,7 @@ class Installment(models.Model):
                 note='' if current is self else f'Excedente aplicado de la cuota {self.number}',
             )
             remaining_to_apply -= applied
+            current._prefetched_objects_cache = {}
 
             if current.remaining_amount <= 0:
                 current.status = self.STATUS_PAID
@@ -554,6 +617,15 @@ class PurchaseInvoice(models.Model):
     def total_amount(self):
         return sum((item.subtotal for item in self.items.all()), Decimal('0'))
 
+    @property
+    def remaining_amount(self):
+        if self.payment_type != self.PAYMENT_INSTALLMENTS:
+            return Decimal('0')
+        if 'purchase_installments' in getattr(self, '_prefetched_objects_cache', {}):
+            return sum((i.remaining_amount for i in self.purchase_installments.all()), Decimal('0'))
+        pending = self.purchase_installments.exclude(status=PurchaseInstallment.STATUS_PAID)
+        return sum((i.remaining_amount for i in pending), Decimal('0'))
+
     def generate_installments(self):
         from dateutil.relativedelta import relativedelta
 
@@ -629,6 +701,81 @@ class PurchaseInstallment(models.Model):
         from django.utils import timezone
         return self.status == self.STATUS_PENDING and self.due_date < timezone.now().date()
 
+    @property
+    def paid_so_far(self):
+        if 'payments' in getattr(self, '_prefetched_objects_cache', {}):
+            return sum((p.amount for p in self.payments.all()), Decimal('0'))
+        total = self.payments.aggregate(total=models.Sum('amount'))['total']
+        return total or Decimal('0')
+
+    @property
+    def remaining_amount(self):
+        remaining = self.amount - self.paid_so_far
+        return remaining if remaining > 0 else Decimal('0')
+
+    def register_payment(self, amount, payment_date=None, created_by=None):
+        """
+        Registra un abono contra esta cuota a proveedor. Si el monto supera
+        el saldo pendiente, el excedente se aplica automáticamente a la
+        siguiente cuota pendiente de la misma compra. Cada abono genera su
+        propio gasto de mercadería por el monto realmente aplicado.
+        Devuelve (cuotas_afectadas, sobrante_sin_aplicar).
+        """
+        from django.utils import timezone
+        payment_date = payment_date or timezone.now().date()
+        amount = Decimal(str(amount))
+        if amount <= 0:
+            raise ValueError('El monto del pago debe ser mayor a cero.')
+
+        affected = [self]
+        remaining_to_apply = amount
+        current = self
+
+        while remaining_to_apply > 0 and current is not None:
+            owed = current.remaining_amount
+            applied = min(owed, remaining_to_apply)
+            expense = Expense.objects.create(
+                amount=applied,
+                category=Expense.CATEGORY_MERCHANDISE,
+                description=(
+                    f'Pago cuota {current.number}/{current.purchase_invoice.installment_count} - '
+                    f'Compra #{current.purchase_invoice.id} - {current.purchase_invoice.supplier.name}'
+                    + ('' if current is self else f' (excedente de la cuota {self.number})')
+                ),
+                expense_date=payment_date,
+            )
+            PurchaseInstallmentPayment.objects.create(
+                installment=current,
+                amount=applied,
+                payment_date=payment_date,
+                created_by=created_by,
+                expense=expense,
+                note='' if current is self else f'Excedente aplicado de la cuota {self.number}',
+            )
+            remaining_to_apply -= applied
+            current._prefetched_objects_cache = {}
+
+            if current.remaining_amount <= 0:
+                current.status = self.STATUS_PAID
+                current.paid_date = payment_date
+                current.paid_amount = current.paid_so_far
+                current.save()
+
+                if remaining_to_apply > 0:
+                    current = PurchaseInstallment.objects.filter(
+                        purchase_invoice=current.purchase_invoice, number__gt=current.number,
+                    ).exclude(status=self.STATUS_PAID).order_by('number').first()
+                    if current:
+                        affected.append(current)
+                    continue
+            else:
+                current.paid_amount = current.paid_so_far
+                current.save()
+
+            break
+
+        return affected, remaining_to_apply
+
     def mark_as_paid(self, paid_date=None, paid_amount=None):
         from django.utils import timezone
         self.status = self.STATUS_PAID
@@ -647,10 +794,32 @@ class PurchaseInstallment(models.Model):
         if self.expense_id:
             self.expense.delete()
             self.expense = None
+        for payment in self.payments.all():
+            if payment.expense_id:
+                payment.expense.delete()
+        self.payments.all().delete()
         self.status = self.STATUS_OVERDUE if self.due_date < timezone.now().date() else self.STATUS_PENDING
         self.paid_date = None
         self.paid_amount = None
         self.save()
+
+
+class PurchaseInstallmentPayment(models.Model):
+    installment = models.ForeignKey(PurchaseInstallment, on_delete=models.CASCADE, related_name='payments', verbose_name='Cuota a Proveedor')
+    amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto Abonado')
+    payment_date = models.DateField(verbose_name='Fecha de Pago')
+    created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Registrado por')
+    expense = models.ForeignKey('Expense', null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Gasto Generado')
+    note = models.CharField(max_length=200, blank=True, verbose_name='Nota')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
+
+    class Meta:
+        ordering = ['installment', 'created_at']
+        verbose_name = 'Abono de Cuota a Proveedor'
+        verbose_name_plural = 'Abonos de Cuotas a Proveedores'
+
+    def __str__(self):
+        return f'Abono Gs. {self.amount} - Cuota proveedor {self.installment_id} ({self.payment_date})'
 
 
 class Expense(models.Model):

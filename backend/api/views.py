@@ -9,7 +9,7 @@ from django.db.models.functions import TruncMonth, TruncDay, TruncWeek
 from datetime import date, timedelta
 from decimal import Decimal
 from .models import (
-    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, Expense, AuditLog,
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, Order, Expense, AuditLog,
     Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
 )
 from .serializers import (
@@ -253,7 +253,7 @@ class CustomerViewSet(AuditMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def sales(self, request, pk=None):
         customer = self.get_object()
-        sales = customer.sales.all().order_by('-sale_date')
+        sales = customer.sales.all().prefetch_related('installments', 'installments__payments').order_by('-sale_date')
         serializer = SaleSerializer(sales, many=True)
         return Response(serializer.data)
 
@@ -268,7 +268,9 @@ class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def purchases(self, request, pk=None):
         supplier = self.get_object()
-        invoices = supplier.purchase_invoices.all().order_by('-purchase_date')
+        invoices = supplier.purchase_invoices.all().prefetch_related(
+            'items', 'items__product', 'purchase_installments', 'purchase_installments__payments',
+        ).order_by('-purchase_date')
         serializer = PurchaseInvoiceSerializer(invoices, many=True)
         return Response(serializer.data)
 
@@ -281,20 +283,23 @@ class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
 
 
 class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
-    queryset = Sale.objects.all().select_related('customer', 'product').order_by('-sale_date', '-created_at')
+    queryset = Sale.objects.all().select_related('customer').prefetch_related(
+        'items', 'items__product', 'installments', 'installments__payments'
+    ).order_by('-sale_date', '-created_at')
     serializer_class = SaleSerializer
     filter_backends = [filters.SearchFilter]
-    search_fields = ['customer__full_name', 'customer__document_number', 'product__name']
+    search_fields = ['customer__full_name', 'customer__document_number', 'items__product__name']
 
     def perform_create(self, serializer):
         sale = serializer.save()
+        for item in sale.items.select_related('product').all():
+            item.product.register_sale_exit(item.quantity, reason=f'Venta #{sale.id}')
         sale.generate_installments()
-        sale.product.register_sale_exit(sale.quantity, reason=f'Venta #{sale.id}')
         log_action(self.request.user, AuditLog.ACTION_CREATE, sale)
 
 
 class PurchaseInvoiceViewSet(AuditMixin, viewsets.ModelViewSet):
-    queryset = PurchaseInvoice.objects.all().select_related('supplier').prefetch_related('items', 'items__product', 'purchase_installments').order_by('-purchase_date', '-created_at')
+    queryset = PurchaseInvoice.objects.all().select_related('supplier').prefetch_related('items', 'items__product', 'purchase_installments', 'purchase_installments__payments').order_by('-purchase_date', '-created_at')
     serializer_class = PurchaseInvoiceSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['supplier__name', 'invoice_number']
@@ -335,7 +340,9 @@ class ExpenseViewSet(AuditMixin, viewsets.ModelViewSet):
 
 
 class InstallmentViewSet(viewsets.ModelViewSet):
-    queryset = Installment.objects.all().select_related('sale', 'sale__customer', 'sale__product').prefetch_related('payments')
+    queryset = Installment.objects.all().select_related('sale', 'sale__customer').prefetch_related(
+        'payments', 'sale__items', 'sale__items__product'
+    )
     serializer_class = InstallmentSerializer
 
     def get_queryset(self):
@@ -419,7 +426,7 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         qs = Installment.objects.filter(
             status__in=[Installment.STATUS_OVERDUE, Installment.STATUS_PENDING],
             due_date__lte=today + timedelta(days=days_ahead),
-        ).select_related('sale', 'sale__customer', 'sale__product').order_by('due_date')
+        ).select_related('sale', 'sale__customer').prefetch_related('sale__items', 'sale__items__product').order_by('due_date')
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -479,7 +486,7 @@ class InstallmentViewSet(viewsets.ModelViewSet):
 
 
 class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
-    queryset = PurchaseInstallment.objects.all().select_related('purchase_invoice', 'purchase_invoice__supplier')
+    queryset = PurchaseInstallment.objects.all().select_related('purchase_invoice', 'purchase_invoice__supplier').prefetch_related('payments')
     serializer_class = PurchaseInstallmentSerializer
 
     def get_queryset(self):
@@ -512,25 +519,38 @@ class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
                 {'error': 'No se puede pagar esta cuota sin antes pagar las cuotas anteriores.'},
                 status=400,
             )
-        paid_amount = request.data.get('paid_amount')
-        installment.mark_as_paid(paid_amount=paid_amount)
+        amount = request.data.get('paid_amount') or installment.remaining_amount
+        try:
+            affected, overpaid_unapplied = installment.register_payment(
+                amount, created_by=request.user,
+            )
+        except ValueError as e:
+            return Response({'error': str(e)}, status=400)
+
+        installment.refresh_from_db()
         log_action(
             request.user, AuditLog.ACTION_CUSTOM, installment,
-            description=f'Marcó como pagada la cuota {installment.number} a proveedor (Gs. {installment.paid_amount})',
+            description=f'Registró un abono de Gs. {amount} en la cuota {installment.number} a proveedor',
         )
         serializer = self.get_serializer(installment)
-        return Response(serializer.data)
+        return Response({
+            **serializer.data,
+            'affected_installments': self.get_serializer(affected, many=True).data,
+            'overpaid_unapplied': str(overpaid_unapplied),
+        })
 
     @action(detail=True, methods=['post'])
     def revert_payment(self, request, pk=None):
         installment = self.get_object()
-        if installment.status != PurchaseInstallment.STATUS_PAID:
-            return Response({'error': 'Esta cuota no está marcada como pagada.'}, status=400)
+        if installment.status != PurchaseInstallment.STATUS_PAID and installment.paid_so_far <= 0:
+            return Response({'error': 'Esta cuota no tiene pagos registrados.'}, status=400)
+        was_partial = installment.status != PurchaseInstallment.STATUS_PAID
         installment.revert_payment()
-        log_action(
-            request.user, AuditLog.ACTION_CUSTOM, installment,
-            description=f'Revirtió el pago de la cuota {installment.number} a proveedor',
+        desc = (
+            f'Deshizo el abono parcial de la cuota {installment.number} a proveedor' if was_partial
+            else f'Revirtió el pago de la cuota {installment.number} a proveedor'
         )
+        log_action(request.user, AuditLog.ACTION_CUSTOM, installment, description=desc)
         serializer = self.get_serializer(installment)
         return Response(serializer.data)
 
@@ -656,33 +676,31 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         today = timezone.now().date()
-        created_sales = []
+        sale = Sale.objects.create(
+            customer=customer,
+            payment_type=order.payment_type,
+            installment_count=order.installment_count if order.payment_type == Order.PAYMENT_INSTALLMENTS else 1,
+            sale_date=today,
+            notes=f'Generada desde Pedido #{order.id}. {order.notes}'.strip(),
+        )
         for item in items:
-            sale = Sale.objects.create(
-                customer=customer,
-                product=item.product,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                payment_type=order.payment_type,
-                installment_count=order.installment_count if order.payment_type == Order.PAYMENT_INSTALLMENTS else 1,
-                sale_date=today,
-                notes=f'Generada desde Pedido #{order.id}. {order.notes}'.strip(),
+            SaleItem.objects.create(
+                sale=sale, product=item.product, quantity=item.quantity, unit_price=item.unit_price,
             )
-            sale.generate_installments()
             item.product.register_sale_exit(item.quantity, reason=f'Venta - Pedido #{order.id}')
-            created_sales.append(sale)
+        sale.generate_installments()
 
         order.status = Order.STATUS_CONVERTED
-        order.linked_sale = created_sales[0]
+        order.linked_sale = sale
         order.save()
         log_action(
             request.user, AuditLog.ACTION_CUSTOM, order,
-            description=f'Convirtió el pedido en {len(created_sales)} venta(s)',
+            description=f'Convirtió el pedido en la venta #{sale.id}',
         )
 
         return Response({
             'order': self.get_serializer(order).data,
-            'sale_ids': [s.id for s in created_sales],
+            'sale_ids': [sale.id],
         })
 
 
@@ -707,8 +725,8 @@ def home_dashboard(request):
     ).order_by('due_date')
     customer_installments_count = customer_installments_qs.count()
     customer_installments = customer_installments_qs.select_related(
-        'sale', 'sale__customer', 'sale__product'
-    ).prefetch_related('payments')[:DASHBOARD_LIMIT]
+        'sale', 'sale__customer'
+    ).prefetch_related('payments', 'sale__items', 'sale__items__product')[:DASHBOARD_LIMIT]
 
     supplier_installments_qs = PurchaseInstallment.objects.filter(
         status__in=[PurchaseInstallment.STATUS_OVERDUE, PurchaseInstallment.STATUS_PENDING],
@@ -761,52 +779,67 @@ def reports(request):
 
     sales_qs = Sale.objects.filter(sale_date__gte=date_from, sale_date__lte=date_to)
     if category_id:
-        sales_qs = sales_qs.filter(product__category_id=category_id)
+        sales_qs = sales_qs.filter(items__product__category_id=category_id).distinct()
     if payment_type:
         sales_qs = sales_qs.filter(payment_type=payment_type)
+
+    sale_items_qs = SaleItem.objects.filter(sale__in=sales_qs)
 
     range_days = (date.fromisoformat(str(date_to)) - date.fromisoformat(str(date_from))).days
     trunc_fn = TruncDay if range_days <= 45 else TruncWeek if range_days <= 180 else TruncMonth
 
     sales_over_time = list(
-        sales_qs.annotate(period=trunc_fn('sale_date'))
+        sale_items_qs.annotate(period=trunc_fn('sale__sale_date'))
         .values('period')
-        .annotate(total=Sum(F('unit_price') * F('quantity')), count=Count('id'))
+        .annotate(total=Sum(F('unit_price') * F('quantity')))
         .order_by('period')
     )
+    sales_count_by_period = dict(
+        sales_qs.annotate(period=trunc_fn('sale_date')).values('period').annotate(count=Count('id')).values_list('period', 'count')
+    )
+    for row in sales_over_time:
+        row['count'] = sales_count_by_period.get(row['period'], 0)
 
-    summary = sales_qs.aggregate(
+    item_summary = sale_items_qs.aggregate(
         total_revenue=Sum(F('unit_price') * F('quantity')),
-        total_sales=Count('id'),
         total_units=Sum('quantity'),
     )
-    total_revenue = summary['total_revenue'] or 0
-    total_sales = summary['total_sales'] or 0
+    total_revenue = item_summary['total_revenue'] or 0
+    total_sales = sales_qs.count()
     avg_ticket = (total_revenue / total_sales) if total_sales else 0
 
     by_payment_type = list(
-        sales_qs.values('payment_type')
-        .annotate(total=Sum(F('unit_price') * F('quantity')), count=Count('id'))
+        sale_items_qs.values('sale__payment_type')
+        .annotate(total=Sum(F('unit_price') * F('quantity')))
         .order_by('-total')
     )
+    sales_count_by_payment = dict(sales_qs.values('payment_type').annotate(count=Count('id')).values_list('payment_type', 'count'))
+    for row in by_payment_type:
+        row['payment_type'] = row.pop('sale__payment_type')
+        row['count'] = sales_count_by_payment.get(row['payment_type'], 0)
 
     top_products = list(
-        sales_qs.values('product_id', 'product__name')
+        sale_items_qs.values('product_id', 'product__name')
         .annotate(units=Sum('quantity'), total=Sum(F('unit_price') * F('quantity')))
         .order_by('-units')[:10]
     )
 
     top_categories = list(
-        sales_qs.values('product__category_id', 'product__category__name')
+        sale_items_qs.values('product__category_id', 'product__category__name')
         .annotate(units=Sum('quantity'), total=Sum(F('unit_price') * F('quantity')))
         .order_by('-total')[:10]
     )
 
     top_customers = list(
-        sales_qs.values('customer_id', 'customer__full_name')
-        .annotate(total=Sum(F('unit_price') * F('quantity')), purchases=Count('id'))
+        sale_items_qs.values('sale__customer_id', 'sale__customer__full_name')
+        .annotate(total=Sum(F('unit_price') * F('quantity')))
         .order_by('-total')[:10]
     )
+    purchases_by_customer = dict(sales_qs.values('customer_id').annotate(count=Count('id')).values_list('customer_id', 'count'))
+    for row in top_customers:
+        row['customer_id'] = row.pop('sale__customer_id')
+        row['customer__full_name'] = row.pop('sale__customer__full_name')
+        row['purchases'] = purchases_by_customer.get(row['customer_id'], 0)
 
     installment_totals = Installment.objects.filter(
         sale__in=sales_qs
@@ -873,7 +906,7 @@ def reports(request):
         'summary': {
             'total_revenue': str(total_revenue),
             'total_sales': total_sales,
-            'total_units': summary['total_units'] or 0,
+            'total_units': item_summary['total_units'] or 0,
             'avg_ticket': str(round(avg_ticket, 2)),
             'total_expenses': str(total_expenses),
             'net_profit': str(net_profit),

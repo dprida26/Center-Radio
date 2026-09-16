@@ -3,8 +3,9 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Sum
 from .models import (
-    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, InstallmentPayment,
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment,
     Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
+    PurchaseInstallmentPayment,
 )
 
 @admin.register(Category)
@@ -227,21 +228,28 @@ class InstallmentInline(admin.TabularInline):
         return False
 
 
+class SaleItemInline(admin.TabularInline):
+    model = SaleItem
+    extra = 1
+    fields = ['product', 'quantity', 'unit_price']
+    autocomplete_fields = ['product']
+
+
 @admin.register(Sale)
 class SaleAdmin(admin.ModelAdmin):
-    list_display = ['id', 'customer', 'product', 'payment_type', 'installment_count', 'total_amount_display', 'sale_date']
+    list_display = ['id', 'customer', 'payment_type', 'installment_count', 'total_amount_display', 'sale_date']
     list_filter = ['payment_type']
-    search_fields = ['customer__full_name', 'customer__document_number', 'product__name']
-    autocomplete_fields = ['customer', 'product']
+    search_fields = ['customer__full_name', 'customer__document_number', 'items__product__name']
+    autocomplete_fields = ['customer']
     date_hierarchy = 'sale_date'
     list_per_page = 25
-    inlines = [InstallmentInline]
+    inlines = [SaleItemInline, InstallmentInline]
     fieldsets = (
         (_('Venta'), {
-            'fields': ('customer', 'product', 'quantity', 'unit_price', 'sale_date', 'notes')
+            'fields': ('customer', 'sale_date', 'notes')
         }),
         (_('Forma de Pago'), {
-            'fields': ('payment_type', 'installment_count', 'interest_rate'),
+            'fields': ('payment_type', 'installment_count', 'interest_rate', 'down_payment', 'payment_day', 'late_fee_rate'),
             'description': 'Si el pago es en cuotas, se generarán automáticamente al guardar'
         }),
         (_('Metadata'), {
@@ -255,12 +263,13 @@ class SaleAdmin(admin.ModelAdmin):
         return f'Gs. {obj.total_amount:,.0f}'.replace(',', '.')
     total_amount_display.short_description = 'Monto Total'
 
-    def save_model(self, request, obj, form, change):
-        is_new = obj.pk is None
-        super().save_model(request, obj, form, change)
-        obj.generate_installments()
-        if is_new:
-            obj.product.register_sale_exit(obj.quantity, reason=f'Venta #{obj.id}')
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        sale = form.instance
+        if not change:
+            for item in sale.items.select_related('product').all():
+                item.product.register_sale_exit(item.quantity, reason=f'Venta #{sale.id}')
+        sale.generate_installments()
 
 
 class PurchaseInstallmentInline(admin.TabularInline):
@@ -399,6 +408,13 @@ class InstallmentAdmin(admin.ModelAdmin):
         return qs
 
 
+class PurchaseInstallmentPaymentInline(admin.TabularInline):
+    model = PurchaseInstallmentPayment
+    extra = 0
+    readonly_fields = ['amount', 'payment_date', 'created_by', 'expense', 'note', 'created_at']
+    can_delete = False
+
+
 @admin.register(PurchaseInstallment)
 class PurchaseInstallmentAdmin(admin.ModelAdmin):
     list_display = ['supplier_name', 'purchase_invoice', 'number', 'amount_display', 'due_date', 'status', 'paid_date']
@@ -407,6 +423,7 @@ class PurchaseInstallmentAdmin(admin.ModelAdmin):
     date_hierarchy = 'due_date'
     list_per_page = 25
     actions = ['mark_as_paid']
+    inlines = [PurchaseInstallmentPaymentInline]
 
     def supplier_name(self, obj):
         return obj.purchase_invoice.supplier.name

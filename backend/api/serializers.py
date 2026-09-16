@@ -1,6 +1,8 @@
+from decimal import Decimal
 from rest_framework import serializers
 from django.db.models import Sum, Q, F
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, Installment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment
+from django.db.models.functions import Coalesce
+from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment
 
 class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
@@ -79,6 +81,8 @@ class CompanyInfoSerializer(serializers.ModelSerializer):
 
 class CustomerSerializer(serializers.ModelSerializer):
     total_debt = serializers.SerializerMethodField()
+    total_debt_remaining = serializers.SerializerMethodField()
+    total_credit_sales = serializers.SerializerMethodField()
     overdue_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -88,7 +92,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             'id_document_image', 'maps_location_url', 'economic_activity',
             'reference1_name', 'reference1_phone', 'reference1_relation',
             'reference2_name', 'reference2_phone', 'reference2_relation',
-            'total_debt', 'overdue_count', 'created_at', 'updated_at',
+            'total_debt', 'total_debt_remaining', 'total_credit_sales', 'overdue_count', 'created_at', 'updated_at',
         ]
 
     def get_total_debt(self, obj):
@@ -97,12 +101,27 @@ class CustomerSerializer(serializers.ModelSerializer):
         ).aggregate(total=Sum('amount'))['total']
         return str(total or 0)
 
+    def get_total_debt_remaining(self, obj):
+        pending = Installment.objects.filter(
+            sale__customer=obj, status__in=[Installment.STATUS_PENDING, Installment.STATUS_OVERDUE]
+        ).annotate(
+            paid=Coalesce(Sum('payments__amount'), Decimal('0'))
+        )
+        total = sum((i.amount - i.paid for i in pending), Decimal('0'))
+        return str(total)
+
+    def get_total_credit_sales(self, obj):
+        total = Installment.objects.filter(sale__customer=obj).aggregate(total=Sum('amount'))['total']
+        return str(total or 0)
+
     def get_overdue_count(self, obj):
         return Installment.objects.filter(sale__customer=obj, status=Installment.STATUS_OVERDUE).count()
 
 
 class SupplierSerializer(serializers.ModelSerializer):
     total_owed = serializers.SerializerMethodField()
+    total_owed_remaining = serializers.SerializerMethodField()
+    total_credit_purchases = serializers.SerializerMethodField()
     overdue_count = serializers.SerializerMethodField()
     product_count = serializers.SerializerMethodField()
     total_stock = serializers.SerializerMethodField()
@@ -111,13 +130,28 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = [
             'id', 'name', 'contact_name', 'phone', 'email', 'address', 'ruc', 'notes', 'is_active',
-            'total_owed', 'overdue_count', 'product_count', 'total_stock',
+            'total_owed', 'total_owed_remaining', 'total_credit_purchases', 'overdue_count', 'product_count', 'total_stock',
             'created_at', 'updated_at',
         ]
 
     def get_total_owed(self, obj):
         total = PurchaseInstallment.objects.filter(
             purchase_invoice__supplier=obj, status__in=[PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE]
+        ).aggregate(total=Sum('amount'))['total']
+        return str(total or 0)
+
+    def get_total_owed_remaining(self, obj):
+        pending = PurchaseInstallment.objects.filter(
+            purchase_invoice__supplier=obj, status__in=[PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE]
+        ).annotate(
+            paid=Coalesce(Sum('payments__amount'), Decimal('0'))
+        )
+        total = sum((i.amount - i.paid for i in pending), Decimal('0'))
+        return str(total)
+
+    def get_total_credit_purchases(self, obj):
+        total = PurchaseInstallment.objects.filter(
+            purchase_invoice__supplier=obj
         ).aggregate(total=Sum('amount'))['total']
         return str(total or 0)
 
@@ -139,7 +173,7 @@ class InstallmentSerializer(serializers.ModelSerializer):
     customer_id = serializers.IntegerField(source='sale.customer.id', read_only=True)
     customer_document = serializers.CharField(source='sale.customer.document_number', read_only=True)
     customer_phone = serializers.CharField(source='sale.customer.phone', read_only=True)
-    product_name = serializers.CharField(source='sale.product.name', read_only=True)
+    product_name = serializers.SerializerMethodField()
     installment_count = serializers.IntegerField(source='sale.installment_count', read_only=True)
     sale_date = serializers.DateField(source='sale.sale_date', read_only=True)
     # Solo lectura: el estado real se calcula en get_status. Un PATCH con "status" en el
@@ -147,6 +181,8 @@ class InstallmentSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     remaining_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    late_fee_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total_with_late_fee = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = Installment
@@ -154,6 +190,7 @@ class InstallmentSerializer(serializers.ModelSerializer):
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'customer_name', 'customer_id', 'customer_document', 'customer_phone', 'product_name',
             'installment_count', 'sale_date', 'remaining_amount', 'paid_so_far',
+            'late_fee_amount', 'total_with_late_fee',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date']
 
@@ -161,6 +198,16 @@ class InstallmentSerializer(serializers.ModelSerializer):
         if obj.status == Installment.STATUS_PENDING and obj.is_overdue:
             return Installment.STATUS_OVERDUE
         return obj.status
+
+    def get_product_name(self, obj):
+        items = list(obj.sale.items.all())
+        if not items:
+            return ''
+        names = [item.product.name for item in items[:2]]
+        label = ', '.join(names)
+        if len(items) > 2:
+            label += f' +{len(items) - 2}'
+        return label
 
 
 class PurchaseInstallmentSerializer(serializers.ModelSerializer):
@@ -173,12 +220,15 @@ class PurchaseInstallmentSerializer(serializers.ModelSerializer):
     # Solo lectura: el estado real se calcula en get_status. Un PATCH con "status" en el
     # body se ignora en silencio; usar las acciones mark_paid/revert_payment del viewset.
     status = serializers.SerializerMethodField()
+    remaining_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = PurchaseInstallment
         fields = [
             'id', 'purchase_invoice', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'supplier_name', 'supplier_id', 'supplier_phone', 'invoice_number', 'installment_count', 'purchase_date',
+            'remaining_amount', 'paid_so_far',
         ]
         read_only_fields = ['id', 'purchase_invoice', 'number', 'amount', 'due_date']
 
@@ -188,32 +238,69 @@ class PurchaseInstallmentSerializer(serializers.ModelSerializer):
         return obj.status
 
 
-class SaleSerializer(serializers.ModelSerializer):
-    customer_name = serializers.CharField(source='customer.full_name', read_only=True)
+class SaleItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
+    subtotal = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SaleItem
+        fields = ['id', 'product', 'product_name', 'quantity', 'unit_price', 'subtotal']
+
+    def get_subtotal(self, obj):
+        return str(obj.subtotal)
+
+
+class SaleSerializer(serializers.ModelSerializer):
+    items = SaleItemSerializer(many=True)
+    customer_name = serializers.CharField(source='customer.full_name', read_only=True)
     total_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
     installments = InstallmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Sale
         fields = [
-            'id', 'customer', 'customer_name', 'product', 'product_name', 'quantity',
-            'unit_price', 'payment_type', 'installment_count', 'interest_rate',
-            'sale_date', 'notes', 'total_amount', 'installments', 'created_at',
+            'id', 'customer', 'customer_name', 'items', 'payment_type', 'installment_count', 'interest_rate',
+            'down_payment', 'payment_day', 'late_fee_rate',
+            'sale_date', 'notes', 'total_amount', 'remaining_amount', 'installments', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
     def get_total_amount(self, obj):
         return str(obj.total_amount)
 
-    def validate(self, data):
-        product = data.get('product') or getattr(self.instance, 'product', None)
-        quantity = data.get('quantity') or getattr(self.instance, 'quantity', 1)
-        if product and quantity and product.stock < quantity:
-            raise serializers.ValidationError({
-                'quantity': f'Stock insuficiente. Disponible: {product.stock}'
-            })
-        return data
+    def get_remaining_amount(self, obj):
+        return str(obj.remaining_amount)
+
+    def validate_payment_day(self, value):
+        if value is not None and not (1 <= value <= 31):
+            raise serializers.ValidationError('El día de pago debe estar entre 1 y 31.')
+        return value
+
+    def validate(self, attrs):
+        down_payment = attrs.get('down_payment') or Decimal('0')
+        if down_payment < 0:
+            raise serializers.ValidationError({'down_payment': 'La entrega inicial no puede ser negativa.'})
+        return attrs
+
+    def validate_items(self, items):
+        if not items:
+            raise serializers.ValidationError('La venta debe tener al menos un producto.')
+        for item in items:
+            product = item.get('product')
+            quantity = item.get('quantity', 1)
+            if product and quantity and product.stock < quantity:
+                raise serializers.ValidationError(
+                    f'Stock insuficiente para "{product.name}". Disponible: {product.stock}'
+                )
+        return items
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        sale = Sale.objects.create(**validated_data)
+        for item_data in items_data:
+            SaleItem.objects.create(sale=sale, **item_data)
+        return sale
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
@@ -326,18 +413,22 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
     items = PurchaseInvoiceItemSerializer(many=True)
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     total_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
     purchase_installments = PurchaseInstallmentSerializer(many=True, read_only=True)
 
     class Meta:
         model = PurchaseInvoice
         fields = [
             'id', 'supplier', 'supplier_name', 'invoice_number', 'payment_type', 'installment_count',
-            'purchase_date', 'notes', 'items', 'total_amount', 'purchase_installments', 'created_at',
+            'purchase_date', 'notes', 'items', 'total_amount', 'remaining_amount', 'purchase_installments', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
     def get_total_amount(self, obj):
         return str(obj.total_amount)
+
+    def get_remaining_amount(self, obj):
+        return str(obj.remaining_amount)
 
     def validate_items(self, items):
         if not items:
