@@ -33,7 +33,11 @@ export default function PanelDashboard() {
   if (error) return <p className="text-red-600">{error}</p>
   if (!data) return null
 
-  const { pending_orders, customer_installments, supplier_installments, low_stock_products } = data
+  const {
+    pending_orders, customer_installments, supplier_installments, low_stock_products,
+    customer_installments_count = customer_installments.length,
+    supplier_installments_count = supplier_installments.length,
+  } = data
   const overdueCustomer = customer_installments.filter((i) => i.status === 'OVERDUE')
   const upcomingCustomer = customer_installments.filter((i) => i.status !== 'OVERDUE')
   const overdueSupplier = supplier_installments.filter((i) => i.status === 'OVERDUE')
@@ -41,8 +45,8 @@ export default function PanelDashboard() {
 
   const nothingUrgent =
     pending_orders === 0 &&
-    customer_installments.length === 0 &&
-    supplier_installments.length === 0 &&
+    customer_installments_count === 0 &&
+    supplier_installments_count === 0 &&
     low_stock_products.length === 0
 
   return (
@@ -79,7 +83,7 @@ export default function PanelDashboard() {
           title="Cobranza a clientes"
           icon={AlertTriangle}
           iconColor="text-red-600"
-          badge={customer_installments.length}
+          badge={customer_installments_count}
           emptyText="No hay cuotas atrasadas ni por vencer."
           seeMoreHref="/panel/reportes"
         >
@@ -97,13 +101,18 @@ export default function PanelDashboard() {
               ))}
             </InstallmentGroup>
           )}
+          {customer_installments_count > customer_installments.length && (
+            <p className="text-xs text-gray-400 text-center pt-2">
+              Mostrando las {customer_installments.length} más urgentes de {customer_installments_count} en total.
+            </p>
+          )}
         </Section>
 
         <Section
           title="Pagos a proveedores"
           icon={Truck}
           iconColor="text-amber-600"
-          badge={supplier_installments.length}
+          badge={supplier_installments_count}
           emptyText="No hay cuotas atrasadas ni por vencer."
           seeMoreHref="/panel/reportes"
         >
@@ -120,6 +129,11 @@ export default function PanelDashboard() {
                 <SupplierInstallmentRow key={row.id} row={row} />
               ))}
             </InstallmentGroup>
+          )}
+          {supplier_installments_count > supplier_installments.length && (
+            <p className="text-xs text-gray-400 text-center pt-2">
+              Mostrando las {supplier_installments.length} más urgentes de {supplier_installments_count} en total.
+            </p>
           )}
         </Section>
 

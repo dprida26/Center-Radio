@@ -332,7 +332,7 @@ class ExpenseViewSet(AuditMixin, viewsets.ModelViewSet):
 
 
 class InstallmentViewSet(viewsets.ModelViewSet):
-    queryset = Installment.objects.all().select_related('sale', 'sale__customer', 'sale__product')
+    queryset = Installment.objects.all().select_related('sale', 'sale__customer', 'sale__product').prefetch_related('payments')
     serializer_class = InstallmentSerializer
 
     def get_queryset(self):
@@ -696,15 +696,25 @@ def home_dashboard(request):
         status=PurchaseInstallment.STATUS_OVERDUE
     )
 
-    customer_installments = Installment.objects.filter(
+    DASHBOARD_LIMIT = 20
+
+    customer_installments_qs = Installment.objects.filter(
         status__in=[Installment.STATUS_OVERDUE, Installment.STATUS_PENDING],
         due_date__lte=soon,
-    ).select_related('sale', 'sale__customer', 'sale__product').order_by('due_date')
+    ).order_by('due_date')
+    customer_installments_count = customer_installments_qs.count()
+    customer_installments = customer_installments_qs.select_related(
+        'sale', 'sale__customer', 'sale__product'
+    ).prefetch_related('payments')[:DASHBOARD_LIMIT]
 
-    supplier_installments = PurchaseInstallment.objects.filter(
+    supplier_installments_qs = PurchaseInstallment.objects.filter(
         status__in=[PurchaseInstallment.STATUS_OVERDUE, PurchaseInstallment.STATUS_PENDING],
         due_date__lte=soon,
-    ).select_related('purchase_invoice', 'purchase_invoice__supplier').order_by('due_date')
+    ).order_by('due_date')
+    supplier_installments_count = supplier_installments_qs.count()
+    supplier_installments = supplier_installments_qs.select_related(
+        'purchase_invoice', 'purchase_invoice__supplier'
+    )[:DASHBOARD_LIMIT]
 
     pending_orders = Order.objects.filter(status=Order.STATUS_PENDING).count()
 
@@ -715,7 +725,9 @@ def home_dashboard(request):
     return Response({
         'pending_orders': pending_orders,
         'customer_installments': InstallmentSerializer(customer_installments, many=True).data,
+        'customer_installments_count': customer_installments_count,
         'supplier_installments': PurchaseInstallmentSerializer(supplier_installments, many=True).data,
+        'supplier_installments_count': supplier_installments_count,
         'low_stock_products': [
             {'id': p.id, 'name': p.name, 'stock': p.stock, 'min_stock': p.min_stock} for p in low_stock_products
         ],

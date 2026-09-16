@@ -425,6 +425,11 @@ class Installment(models.Model):
 
     @property
     def paid_so_far(self):
+        # Si payments ya viene precargado (prefetch_related), sumar en memoria
+        # evita una query por cuota al listar muchas (N+1). Si no, cae al
+        # aggregate normal (una sola cuota consultada de forma aislada).
+        if 'payments' in getattr(self, '_prefetched_objects_cache', {}):
+            return sum((p.amount for p in self.payments.all()), Decimal('0'))
         total = self.payments.aggregate(total=models.Sum('amount'))['total']
         return total or Decimal('0')
 
