@@ -23,6 +23,7 @@ export default function ClienteDetallePage() {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
   const [confirmTarget, setConfirmTarget] = useState(null)
+  const [revertTarget, setRevertTarget] = useState(null)
   const [editing, setEditing] = useState(false)
   const [locationCopied, setLocationCopied] = useState(false)
 
@@ -69,11 +70,13 @@ export default function ClienteDetallePage() {
     }
   }
 
-  const handleRevert = async (installmentId) => {
-    setBusyId(installmentId)
+  const handleConfirmRevert = async () => {
+    if (!revertTarget) return
+    setBusyId(revertTarget.id)
     try {
-      await installmentService.revertPayment(installmentId)
+      await installmentService.revertPayment(revertTarget.id)
       load()
+      setRevertTarget(null)
     } finally {
       setBusyId(null)
     }
@@ -205,7 +208,7 @@ export default function ClienteDetallePage() {
                 key={sale.id}
                 sale={sale}
                 onRequestMarkPaid={setConfirmTarget}
-                onRevert={handleRevert}
+                onRevert={setRevertTarget}
                 busyId={busyId}
               />
             ))}
@@ -219,6 +222,15 @@ export default function ClienteDetallePage() {
           busy={busyId === confirmTarget.id}
           onCancel={() => setConfirmTarget(null)}
           onConfirm={handleConfirmPayment}
+        />
+      )}
+
+      {revertTarget && (
+        <ConfirmRevertModal
+          installment={revertTarget}
+          busy={busyId === revertTarget.id}
+          onCancel={() => setRevertTarget(null)}
+          onConfirm={handleConfirmRevert}
         />
       )}
 
@@ -615,6 +627,51 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
   )
 }
 
+function ConfirmRevertModal({ installment, busy, onCancel, onConfirm }) {
+  const isPartial = installment.status !== 'PAID'
+  const amountToUndo = isPartial ? installment.paid_so_far : installment.paid_amount
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">
+            {isPartial ? 'Deshacer abono' : 'Deshacer pago'}
+          </h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          {isPartial
+            ? <>Vas a borrar el abono de <strong>{formatGs(amountToUndo)}</strong> registrado en la cuota {installment.number}. La cuota volverá a quedar sin ningún pago.</>
+            : <>Vas a revertir el pago de la cuota {installment.number}. Volverá a quedar pendiente.</>}
+          {' '}Esta acción no se puede deshacer.
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+            {busy ? 'Deshaciendo...' : 'Sí, deshacer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
   const isCash = sale.payment_type === 'CASH'
   return (
@@ -673,7 +730,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                           Comprobante
                         </Link>
                         <button
-                          onClick={() => onRevert(inst.id)}
+                          onClick={() => onRevert(inst)}
                           disabled={isBusy}
                           className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50"
                           title="Revertir a pendiente"
@@ -683,14 +740,27 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => onRequestMarkPaid(inst)}
-                        disabled={isBusy}
-                        className="flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-900 disabled:opacity-50 ml-auto"
-                      >
-                        <CheckCircle2 size={14} />
-                        Registrar pago
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        {parseFloat(inst.paid_so_far) > 0 && (
+                          <button
+                            onClick={() => onRevert(inst)}
+                            disabled={isBusy}
+                            className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 disabled:opacity-50"
+                            title="Deshacer el abono parcial registrado"
+                          >
+                            <RotateCcw size={14} />
+                            {isBusy ? 'Deshaciendo...' : 'Deshacer abono'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onRequestMarkPaid(inst)}
+                          disabled={isBusy}
+                          className="flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-900 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={14} />
+                          Registrar pago
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

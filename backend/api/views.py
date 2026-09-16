@@ -393,13 +393,15 @@ class InstallmentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def revert_payment(self, request, pk=None):
         installment = self.get_object()
-        if installment.status != Installment.STATUS_PAID:
-            return Response({'error': 'Esta cuota no está marcada como pagada.'}, status=400)
+        if installment.status != Installment.STATUS_PAID and installment.paid_so_far <= 0:
+            return Response({'error': 'Esta cuota no tiene pagos registrados.'}, status=400)
+        was_partial = installment.status != Installment.STATUS_PAID
         installment.revert_payment()
-        log_action(
-            request.user, AuditLog.ACTION_CUSTOM, installment,
-            description=f'Revirtió el pago de la cuota {installment.number}',
+        desc = (
+            f'Deshizo el abono parcial de la cuota {installment.number}' if was_partial
+            else f'Revirtió el pago de la cuota {installment.number}'
         )
+        log_action(request.user, AuditLog.ACTION_CUSTOM, installment, description=desc)
         serializer = self.get_serializer(installment)
         return Response(serializer.data)
 
