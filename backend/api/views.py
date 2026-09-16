@@ -88,7 +88,10 @@ class ProductViewSet(AuditMixin, viewsets.ModelViewSet):
         log_action(self.request.user, AuditLog.ACTION_CREATE, product)
 
     def get_queryset(self):
-        if self.request.query_params.get('include_inactive'):
+        if self.request.query_params.get('include_inactive') or self.action in (
+            'retrieve', 'update', 'partial_update', 'destroy',
+            'images', 'delete_image', 'add_stock',
+        ):
             queryset = Product.objects.all()
         else:
             queryset = super().get_queryset()
