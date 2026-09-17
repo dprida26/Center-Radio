@@ -1,20 +1,37 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   BarChart3, TrendingUp, ShoppingBag, AlertTriangle,
-  Package, Loader2, Truck,
+  Package, Loader2, Truck, Users,
   FileSpreadsheet, Download, UserX, Boxes, CalendarClock,
 } from 'lucide-react'
 import { installmentService, exportService } from '@/services/api'
+
+const VALID_TABS = ['ventas', 'cobranza', 'proveedores', 'operativos']
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
 }
 
 export default function ReportesPage() {
-  const [tab, setTab] = useState('ventas')
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-24">
+        <Loader2 size={28} className="animate-spin text-gray-400" />
+      </div>
+    }>
+      <ReportesPageInner />
+    </Suspense>
+  )
+}
+
+function ReportesPageInner() {
+  const searchParams = useSearchParams()
+  const initialTab = VALID_TABS.includes(searchParams.get('tab')) ? searchParams.get('tab') : 'ventas'
+  const [tab, setTab] = useState(initialTab)
   const [overdueCount, setOverdueCount] = useState(0)
 
   useEffect(() => {
@@ -425,6 +442,7 @@ function ProveedoresReport() {
 }
 
 const OPERATIVOS_REPORTS = [
+  { key: 'clientes', label: 'Listado de clientes', icon: Users, color: 'blue' },
   { key: 'mora', label: 'Clientes con mora', icon: UserX, color: 'red' },
   { key: 'stock', label: 'Stock y precios', icon: Boxes, color: 'blue' },
 ]
@@ -452,6 +470,7 @@ function ReportesOperativos() {
         ))}
       </div>
 
+      {reportKey === 'clientes' && <ClientesReport />}
       {reportKey === 'mora' && <MoraReport />}
       {reportKey === 'stock' && <StockReport />}
     </div>
@@ -495,6 +514,83 @@ function ReportPanel({ icon: Icon, color, title, description, filters, count, do
       </div>
       {children}
     </div>
+  )
+}
+
+function ClientesReport() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewListadoClientes().then(setRows).finally(() => setLoading(false))
+  }, [])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.listadoClientes()
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={Users}
+      color="blue"
+      title="Listado de clientes"
+      description="Todos los clientes con sus datos de contacto e historial de compras."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay clientes registrados." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[900px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Cliente</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">CI/RUC</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Teléfono</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Dirección</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Total comprado</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Compras</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Saldo pendiente</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Última compra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.customer_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <Link href={`/panel/clientes/${r.customer_id}`} className="font-medium text-blue-600 hover:underline" title={r.full_name}>
+                      {r.full_name}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.document_number}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.phone || '—'}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap max-w-[220px] truncate" title={r.address}>{r.address || '—'}</td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.total_purchased)}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{r.purchase_count}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{formatGs(r.pending_amount)}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.last_sale_date || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
   )
 }
 

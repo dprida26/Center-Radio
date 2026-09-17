@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Inbox, PackageX, Truck, CheckCircle2 } from 'lucide-react'
+import { AlertTriangle, Inbox, PackageX, Truck, CheckCircle2, Loader2, ShoppingCart, PackagePlus, Wallet } from 'lucide-react'
 import { reportService } from '@/services/api'
+
+const UPCOMING_DAYS = 2
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -29,7 +31,13 @@ export default function PanelDashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <p className="text-gray-500">Cargando...</p>
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 size={28} className="animate-spin text-gray-400" />
+      </div>
+    )
+  }
   if (error) return <p className="text-red-600">{error}</p>
   if (!data) return null
 
@@ -54,6 +62,12 @@ export default function PanelDashboard() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Inicio</h1>
         <p className="text-gray-500 text-sm mt-1">Lo que necesita tu atención hoy</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <QuickActionCard href="/panel/ventas/nueva" icon={ShoppingCart} label="Nueva Venta" iconClass="text-blue-600 bg-blue-50" />
+        <QuickActionCard href="/panel/compras/nueva" icon={PackagePlus} label="Nueva Compra" iconClass="text-gray-600 bg-gray-100" />
+        <QuickActionCard href="/panel/clientes" icon={Wallet} label="Registrar un pago" iconClass="text-emerald-600 bg-emerald-50" />
       </div>
 
       {nothingUrgent && (
@@ -82,10 +96,10 @@ export default function PanelDashboard() {
         <Section
           title="Cobranza a clientes"
           icon={AlertTriangle}
-          iconColor="text-red-600"
+          urgency={overdueCustomer.length > 0 ? 'high' : customer_installments_count > 0 ? 'medium' : 'none'}
           badge={customer_installments_count}
           emptyText="No hay cuotas atrasadas ni por vencer."
-          seeMoreHref="/panel/reportes"
+          seeMoreHref="/panel/reportes?tab=cobranza"
         >
           {overdueCustomer.length > 0 && (
             <InstallmentGroup label={`${overdueCustomer.length} atrasada(s)`} labelClass="text-red-600">
@@ -95,7 +109,7 @@ export default function PanelDashboard() {
             </InstallmentGroup>
           )}
           {upcomingCustomer.length > 0 && (
-            <InstallmentGroup label={`${upcomingCustomer.length} vence(n) en 2 días`} labelClass="text-amber-600">
+            <InstallmentGroup label={`${upcomingCustomer.length} vence(n) en ${UPCOMING_DAYS}d`} labelClass="text-amber-600">
               {upcomingCustomer.map((row) => (
                 <CustomerInstallmentRow key={row.id} row={row} />
               ))}
@@ -111,10 +125,10 @@ export default function PanelDashboard() {
         <Section
           title="Pagos a proveedores"
           icon={Truck}
-          iconColor="text-amber-600"
+          urgency={overdueSupplier.length > 0 ? 'high' : supplier_installments_count > 0 ? 'medium' : 'none'}
           badge={supplier_installments_count}
           emptyText="No hay cuotas atrasadas ni por vencer."
-          seeMoreHref="/panel/reportes"
+          seeMoreHref="/panel/reportes?tab=proveedores"
         >
           {overdueSupplier.length > 0 && (
             <InstallmentGroup label={`${overdueSupplier.length} atrasada(s)`} labelClass="text-red-600">
@@ -124,7 +138,7 @@ export default function PanelDashboard() {
             </InstallmentGroup>
           )}
           {upcomingSupplier.length > 0 && (
-            <InstallmentGroup label={`${upcomingSupplier.length} vence(n) en 2 días`} labelClass="text-amber-600">
+            <InstallmentGroup label={`${upcomingSupplier.length} vence(n) en ${UPCOMING_DAYS}d`} labelClass="text-amber-600">
               {upcomingSupplier.map((row) => (
                 <SupplierInstallmentRow key={row.id} row={row} />
               ))}
@@ -140,7 +154,7 @@ export default function PanelDashboard() {
         <Section
           title="Stock bajo"
           icon={PackageX}
-          iconColor="text-orange-600"
+          urgency={low_stock_products.some((p) => p.stock === 0) ? 'high' : low_stock_products.length > 0 ? 'medium' : 'none'}
           badge={low_stock_products.length}
           emptyText="No hay productos con stock bajo."
         >
@@ -164,20 +178,30 @@ export default function PanelDashboard() {
   )
 }
 
-function Section({ title, icon: Icon, iconColor, badge, children, emptyText, seeMoreHref }) {
-  const isEmpty = !children || (Array.isArray(children) && children.every((c) => !c))
+const URGENCY_STYLES = {
+  high: { border: 'border-red-200', iconBg: 'bg-red-50 text-red-600' },
+  medium: { border: 'border-amber-200', iconBg: 'bg-amber-50 text-amber-600' },
+  none: { border: 'border-gray-200', iconBg: 'bg-gray-100 text-gray-500' },
+}
+
+function Section({ title, icon: Icon, urgency = 'none', badge, children, emptyText, seeMoreHref }) {
+  const style = URGENCY_STYLES[urgency]
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className={`bg-white rounded-xl border p-5 ${style.border}`}>
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Icon size={16} className={iconColor} />
-          <h2 className="font-semibold text-gray-900">{title}</h2>
-          {badge > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{badge}</span>
-          )}
+        <div className="flex items-center gap-3">
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${style.iconBg}`}>
+            <Icon size={18} />
+          </div>
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-gray-900">{title}</h2>
+            {badge > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">{badge}</span>
+            )}
+          </div>
         </div>
         {seeMoreHref && badge > 0 && (
-          <Link href={seeMoreHref} className="text-xs text-blue-600 hover:underline font-medium">
+          <Link href={seeMoreHref} className="text-xs text-blue-600 hover:underline font-medium whitespace-nowrap">
             Ver todo
           </Link>
         )}
@@ -188,6 +212,20 @@ function Section({ title, icon: Icon, iconColor, badge, children, emptyText, see
         <div className="max-h-80 overflow-y-auto pr-1">{children}</div>
       )}
     </div>
+  )
+}
+
+function QuickActionCard({ href, icon: Icon, label, iconClass }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 bg-white rounded-xl border border-gray-200 p-4 hover:border-gray-300 hover:shadow-sm transition-all"
+    >
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${iconClass}`}>
+        <Icon size={20} />
+      </div>
+      <span className="font-semibold text-gray-900 text-sm">{label}</span>
+    </Link>
   )
 }
 
@@ -243,3 +281,4 @@ function SupplierInstallmentRow({ row, overdue }) {
 function EmptyState({ text }) {
   return <p className="text-sm text-gray-400 italic py-4 text-center">{text}</p>
 }
+

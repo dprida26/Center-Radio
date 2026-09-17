@@ -597,6 +597,8 @@ export const exportService = {
   previewResumenVentas: async (params = {}) => (await api.get('/sales/resumen_preview/', { params })).data,
   deudaProveedores: (params = {}) => downloadFile('/suppliers/export_deuda/', params),
   previewDeudaProveedores: async (params = {}) => (await api.get('/suppliers/deuda_preview/', { params })).data,
+  listadoClientes: () => downloadFile('/customers/export_clientes/'),
+  previewListadoClientes: async () => (await api.get('/customers/clientes_preview/')).data,
 }
 
 export default api

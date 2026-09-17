@@ -306,23 +306,34 @@ class CustomerViewSet(AuditMixin, viewsets.ModelViewSet):
         serializer = SaleSerializer(sales, many=True)
         return Response(serializer.data)
 
-    def _mora_data(self, due_from=None, due_to=None):
+    def _clientes_data(self):
         from .reports_export import to_number
-        today = timezone.now().date()
-        overdue_q = (
-            Q(sales__installments__status=Installment.STATUS_OVERDUE) |
-            Q(sales__installments__status=Installment.STATUS_PENDING, sales__installments__due_date__lt=today)
-        )
-        if due_from:
-            overdue_q &= Q(sales__installments__due_date__gte=due_from)
-        if due_to:
-            overdue_q &= Q(sales__installments__due_date__lte=due_to)
 
-        customers = Customer.objects.annotate(
-            overdue_amount=Sum('sales__installments__amount', filter=overdue_q),
-            overdue_count=Count('sales__installments', filter=overdue_q),
-            oldest_due_date=Min('sales__installments__due_date', filter=overdue_q),
-        ).filter(overdue_count__gt=0).order_by('-overdue_amount')
+        customers = Customer.objects.all().order_by('full_name')
+
+        purchased_by_customer = dict(
+            SaleItem.objects.values('sale__customer_id')
+            .annotate(total=Sum(F('unit_price') * F('quantity')))
+            .values_list('sale__customer_id', 'total')
+        )
+        sales_count_by_customer = dict(
+            Sale.objects.values('customer_id').annotate(count=Count('id')).values_list('customer_id', 'count')
+        )
+        last_sale_by_customer = dict(
+            Sale.objects.values('customer_id').annotate(last_date=Max('sale_date')).values_list('customer_id', 'last_date')
+        )
+
+        # El saldo pendiente usa remaining_amount real (descuenta abonos
+        # parciales via payments), no el monto bruto de la cuota. Mismo
+        # patrón que _proveedores_data y _mora_data.
+        pending_installments = Installment.objects.filter(
+            status__in=[Installment.STATUS_PENDING, Installment.STATUS_OVERDUE],
+        ).select_related('sale').prefetch_related('payments')
+
+        pending_by_customer = {}
+        for inst in pending_installments:
+            customer_id = inst.sale.customer_id
+            pending_by_customer[customer_id] = pending_by_customer.get(customer_id, Decimal('0')) + inst.remaining_amount
 
         return [
             {
@@ -330,12 +341,100 @@ class CustomerViewSet(AuditMixin, viewsets.ModelViewSet):
                 'full_name': c.full_name,
                 'document_number': c.document_number,
                 'phone': c.phone or '',
-                'overdue_count': c.overdue_count,
-                'overdue_amount': to_number(c.overdue_amount),
-                'days_overdue': (today - c.oldest_due_date).days if c.oldest_due_date else 0,
+                'email': c.email or '',
+                'address': c.address or '',
+                'total_purchased': to_number(purchased_by_customer.get(c.id) or 0),
+                'purchase_count': sales_count_by_customer.get(c.id, 0),
+                'pending_amount': to_number(pending_by_customer.get(c.id, Decimal('0'))),
+                'last_sale_date': (
+                    last_sale_by_customer[c.id].strftime('%d/%m/%Y')
+                    if last_sale_by_customer.get(c.id) else ''
+                ),
             }
             for c in customers
         ]
+
+    @action(detail=False, methods=['get'], url_path='clientes_preview')
+    def clientes_preview(self, request):
+        return Response(self._clientes_data())
+
+    @action(detail=False, methods=['get'], url_path='export_clientes')
+    def export_clientes(self, request):
+        from .reports_export import build_xlsx_response
+        data = self._clientes_data()
+        columns = [
+            {'header': 'Cliente', 'width': 30},
+            {'header': 'CI/RUC', 'width': 14},
+            {'header': 'Teléfono', 'width': 16},
+            {'header': 'Correo', 'width': 24},
+            {'header': 'Dirección', 'width': 30},
+            {'header': 'Total comprado', 'width': 18, 'format': 'gs'},
+            {'header': 'Cantidad de compras', 'width': 16, 'format': 'number'},
+            {'header': 'Saldo pendiente', 'width': 18, 'format': 'gs'},
+            {'header': 'Última compra', 'width': 16},
+        ]
+        rows = [
+            (r['full_name'], r['document_number'], r['phone'], r['email'], r['address'],
+             r['total_purchased'], r['purchase_count'], r['pending_amount'], r['last_sale_date'])
+            for r in data
+        ]
+        return build_xlsx_response(
+            'listado_clientes.xlsx', 'Clientes', columns, rows,
+            report_title='Listado de Clientes',
+        )
+
+    def _mora_data(self, due_from=None, due_to=None):
+        from .reports_export import to_number
+        today = timezone.now().date()
+        overdue_q = (
+            Q(status=Installment.STATUS_OVERDUE) |
+            Q(status=Installment.STATUS_PENDING, due_date__lt=today)
+        )
+        if due_from:
+            overdue_q &= Q(due_date__gte=due_from)
+        if due_to:
+            overdue_q &= Q(due_date__lte=due_to)
+
+        # El monto atrasado se calcula con remaining_amount real (descuenta
+        # abonos parciales via payments), no el monto bruto de la cuota:
+        # Sum('amount') sobreestima la mora cuando el cliente ya abonó
+        # parte de una cuota que sigue vencida. Mismo patrón que
+        # _proveedores_data.
+        overdue_installments = Installment.objects.filter(overdue_q).select_related(
+            'sale', 'sale__customer'
+        ).prefetch_related('payments')
+
+        by_customer = {}
+        for inst in overdue_installments:
+            customer = inst.sale.customer
+            entry = by_customer.setdefault(customer.id, {
+                'customer_id': customer.id,
+                'full_name': customer.full_name,
+                'document_number': customer.document_number,
+                'phone': customer.phone or '',
+                'overdue_count': 0,
+                'overdue_amount': Decimal('0'),
+                'oldest_due_date': inst.due_date,
+            })
+            entry['overdue_count'] += 1
+            entry['overdue_amount'] += inst.remaining_amount
+            if inst.due_date < entry['oldest_due_date']:
+                entry['oldest_due_date'] = inst.due_date
+
+        result = [
+            {
+                'customer_id': e['customer_id'],
+                'full_name': e['full_name'],
+                'document_number': e['document_number'],
+                'phone': e['phone'],
+                'overdue_count': e['overdue_count'],
+                'overdue_amount': to_number(e['overdue_amount']),
+                'days_overdue': (today - e['oldest_due_date']).days,
+            }
+            for e in by_customer.values()
+        ]
+        result.sort(key=lambda r: r['overdue_amount'], reverse=True)
+        return result
 
     @action(detail=False, methods=['get'], url_path='mora_preview')
     def mora_preview(self, request):
