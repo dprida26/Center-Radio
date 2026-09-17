@@ -290,6 +290,9 @@ class Sale(models.Model):
         ordering = ['-sale_date', '-created_at']
         verbose_name = 'Venta'
         verbose_name_plural = 'Ventas'
+        indexes = [
+            models.Index(fields=['sale_date']),
+        ]
 
     def __str__(self):
         return f'Venta #{self.id} - {self.customer.full_name}'
@@ -465,6 +468,10 @@ class Installment(models.Model):
         verbose_name = 'Cuota'
         verbose_name_plural = 'Cuotas'
         unique_together = ['sale', 'number']
+        indexes = [
+            models.Index(fields=['status', 'due_date']),
+            models.Index(fields=['due_date']),
+        ]
 
     def __str__(self):
         return f'{self.sale.customer.full_name} - Cuota {self.number}/{self.sale.installment_count}'
@@ -630,6 +637,9 @@ class PurchaseInvoice(models.Model):
         ordering = ['-purchase_date', '-created_at']
         verbose_name = 'Compra a Proveedor'
         verbose_name_plural = 'Compras a Proveedores'
+        indexes = [
+            models.Index(fields=['purchase_date']),
+        ]
 
     def __str__(self):
         return f'Compra #{self.id} - {self.supplier.name}'
@@ -717,6 +727,10 @@ class PurchaseInstallment(models.Model):
         verbose_name = 'Cuota a Proveedor'
         verbose_name_plural = 'Cuotas a Proveedores'
         unique_together = ['purchase_invoice', 'number']
+        indexes = [
+            models.Index(fields=['status', 'due_date']),
+            models.Index(fields=['due_date']),
+        ]
 
     def __str__(self):
         return f'{self.purchase_invoice.supplier.name} - Cuota {self.number}/{self.purchase_invoice.installment_count}'
