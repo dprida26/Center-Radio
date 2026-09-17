@@ -394,6 +394,13 @@ export const installmentService = {
     const { data } = await api.get('/installments/dashboard/')
     return data
   },
+  updateLateFee: async (id, { lateFeeEnabled, lateFeeOverride } = {}) => {
+    const payload = {}
+    if (lateFeeEnabled !== undefined) payload.late_fee_enabled = lateFeeEnabled
+    if (lateFeeOverride !== undefined) payload.late_fee_override = lateFeeOverride
+    const { data } = await api.patch(`/installments/${id}/update_late_fee/`, payload)
+    return data
+  },
 }
 
 export const supplierService = {

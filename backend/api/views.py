@@ -415,6 +415,34 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(installment)
         return Response(serializer.data)
 
+    @action(detail=True, methods=['patch'])
+    def update_late_fee(self, request, pk=None):
+        installment = self.get_object()
+
+        if 'late_fee_enabled' in request.data:
+            installment.late_fee_enabled = bool(request.data['late_fee_enabled'])
+
+        if 'late_fee_override' in request.data:
+            raw = request.data['late_fee_override']
+            if raw in (None, ''):
+                installment.late_fee_override = None
+            else:
+                try:
+                    override = Decimal(str(raw))
+                except Exception:
+                    return Response({'error': 'Monto de mora inválido.'}, status=400)
+                if override < 0:
+                    return Response({'error': 'El monto de mora no puede ser negativo.'}, status=400)
+                installment.late_fee_override = override
+
+        installment.save(update_fields=['late_fee_enabled', 'late_fee_override'])
+
+        desc = f'Editó el recargo por mora de la cuota {installment.number} (habilitado: {installment.late_fee_enabled}, monto: {installment.late_fee_amount}).'
+        log_action(request.user, AuditLog.ACTION_CUSTOM, installment, description=desc)
+
+        serializer = self.get_serializer(installment)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'])
     def due_report(self, request):
         from datetime import timedelta

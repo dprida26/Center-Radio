@@ -24,6 +24,7 @@ export default function ClienteDetallePage() {
   const [busyId, setBusyId] = useState(null)
   const [confirmTarget, setConfirmTarget] = useState(null)
   const [revertTarget, setRevertTarget] = useState(null)
+  const [lateFeeTarget, setLateFeeTarget] = useState(null)
   const [editing, setEditing] = useState(false)
   const [locationCopied, setLocationCopied] = useState(false)
 
@@ -77,6 +78,20 @@ export default function ClienteDetallePage() {
       await installmentService.revertPayment(revertTarget.id)
       load()
       setRevertTarget(null)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleSaveLateFee = async ({ lateFeeEnabled, lateFeeOverride }) => {
+    if (!lateFeeTarget) return
+    setBusyId(lateFeeTarget.id)
+    try {
+      await installmentService.updateLateFee(lateFeeTarget.id, { lateFeeEnabled, lateFeeOverride })
+      load()
+      setLateFeeTarget(null)
+    } catch (err) {
+      alert(err?.response?.data?.error || 'No se pudo actualizar el recargo por mora.')
     } finally {
       setBusyId(null)
     }
@@ -213,6 +228,7 @@ export default function ClienteDetallePage() {
                 sale={sale}
                 onRequestMarkPaid={setConfirmTarget}
                 onRevert={setRevertTarget}
+                onEditLateFee={setLateFeeTarget}
                 busyId={busyId}
               />
             ))}
@@ -235,6 +251,15 @@ export default function ClienteDetallePage() {
           busy={busyId === revertTarget.id}
           onCancel={() => setRevertTarget(null)}
           onConfirm={handleConfirmRevert}
+        />
+      )}
+
+      {lateFeeTarget && (
+        <LateFeeModal
+          installment={lateFeeTarget}
+          busy={busyId === lateFeeTarget.id}
+          onCancel={() => setLateFeeTarget(null)}
+          onSave={handleSaveLateFee}
         />
       )}
 
@@ -676,7 +701,83 @@ function ConfirmRevertModal({ installment, busy, onCancel, onConfirm }) {
   )
 }
 
-function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
+function LateFeeModal({ installment, busy, onCancel, onSave }) {
+  const [enabled, setEnabled] = useState(installment.late_fee_enabled)
+  const [override, setOverride] = useState(
+    installment.late_fee_override !== null && installment.late_fee_override !== undefined
+      ? installment.late_fee_override
+      : ''
+  )
+
+  const calculatedFee = installment.late_fee_amount
+  const usingOverride = override !== ''
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Recargo por mora — Cuota {installment.number}</h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <label className="flex items-center gap-2 mb-4 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={enabled}
+            onChange={(e) => setEnabled(e.target.checked)}
+            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-gray-700">Aplicar recargo por mora a esta cuota</span>
+        </label>
+
+        {enabled && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Monto de mora (Gs.)</label>
+            <input
+              type="number"
+              min={0}
+              step="1"
+              placeholder={`Automático: ${formatGs(calculatedFee)}`}
+              value={override}
+              onChange={(e) => setOverride(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {usingOverride
+                ? 'Vas a fijar este monto manualmente, en vez del cálculo automático.'
+                : `Dejalo vacío para usar el cálculo automático (${formatGs(calculatedFee)} según la tasa de mora de la venta).`}
+            </p>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave({
+              lateFeeEnabled: enabled,
+              lateFeeOverride: enabled && usingOverride ? override : null,
+            })}
+            disabled={busy}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+          >
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            {busy ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) {
   const isCash = sale.payment_type === 'CASH'
   const hasPendingBalance = !isCash && parseFloat(sale.remaining_amount) > 0
   const [expanded, setExpanded] = useState(hasPendingBalance)
@@ -750,6 +851,21 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                         Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
                       </div>
                     )}
+                    {inst.status !== 'PAID' && inst.status === 'OVERDUE' && (
+                      <div className="text-xs mt-0.5">
+                        {inst.late_fee_enabled ? (
+                          parseFloat(inst.late_fee_amount) > 0 ? (
+                            <span className="text-red-600 font-medium">
+                              + Mora {formatGs(inst.late_fee_amount)} = {formatGs(inst.total_with_late_fee)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">Sin mora</span>
+                          )
+                        ) : (
+                          <span className="text-gray-400 italic">Mora deshabilitada</span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2 text-center">
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusInfo.className}`}>
@@ -779,6 +895,17 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, busyId }) {
                       </div>
                     ) : (
                       <div className="flex items-center justify-end gap-3">
+                        {inst.status === 'OVERDUE' && (
+                          <button
+                            onClick={() => onEditLateFee(inst)}
+                            disabled={isBusy}
+                            className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-blue-700 disabled:opacity-50"
+                            title="Editar recargo por mora"
+                          >
+                            <Pencil size={13} />
+                            Mora
+                          </button>
+                        )}
                         {parseFloat(inst.paid_so_far) > 0 && (
                           <button
                             onClick={() => onRevert(inst)}

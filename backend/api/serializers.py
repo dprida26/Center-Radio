@@ -190,9 +190,9 @@ class InstallmentSerializer(serializers.ModelSerializer):
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'customer_name', 'customer_id', 'customer_document', 'customer_phone', 'product_name',
             'installment_count', 'sale_date', 'remaining_amount', 'paid_so_far',
-            'late_fee_amount', 'total_with_late_fee',
+            'late_fee_amount', 'total_with_late_fee', 'late_fee_enabled', 'late_fee_override',
         ]
-        read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date']
+        read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date', 'late_fee_enabled', 'late_fee_override']
 
     def get_status(self, obj):
         if obj.status == Installment.STATUS_PENDING and obj.is_overdue:

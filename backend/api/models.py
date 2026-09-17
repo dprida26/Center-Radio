@@ -446,6 +446,11 @@ class Installment(models.Model):
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_PENDING, verbose_name='Estado')
     paid_date = models.DateField(null=True, blank=True, verbose_name='Fecha de Pago')
     paid_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Monto Pagado')
+    late_fee_enabled = models.BooleanField(default=True, verbose_name='Recargo por Mora Habilitado')
+    late_fee_override = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        verbose_name='Monto de Mora Editado Manualmente',
+    )
 
     class Meta:
         ordering = ['sale', 'number']
@@ -478,13 +483,21 @@ class Installment(models.Model):
 
     @property
     def late_fee_amount(self):
-        """Recargo por mora sobre el saldo pendiente, calculado en el momento
-        (no se persiste): tasa mensual de la venta prorrateada por los días
-        de atraso desde el vencimiento."""
+        """Recargo por mora sobre el saldo pendiente. Por defecto se calcula
+        en el momento (no se persiste): tasa mensual de la venta prorrateada
+        por los días de atraso desde el vencimiento. Puede deshabilitarse
+        (late_fee_enabled=False) o reemplazarse por un monto manual
+        (late_fee_override) por cuota."""
+        if not self.late_fee_enabled or self.status == self.STATUS_PAID:
+            return Decimal('0')
+
+        if self.late_fee_override is not None:
+            return self.late_fee_override
+
         from django.utils import timezone
 
         rate = self.sale.late_fee_rate
-        if not rate or self.status == self.STATUS_PAID:
+        if not rate:
             return Decimal('0')
 
         today = timezone.now().date()
