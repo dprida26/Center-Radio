@@ -4,13 +4,13 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils import timezone
-from django.db.models import Q, Sum, Count, F
-from django.db.models.functions import TruncMonth, TruncDay, TruncWeek
+from django.db.models import Q, Sum, Count, F, Subquery, OuterRef
+from django.db.models.functions import TruncMonth, TruncDay, TruncWeek, Coalesce
 from datetime import date, timedelta
 from decimal import Decimal
 from .models import (
-    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, Order, Expense, AuditLog,
-    Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment, Order, Expense, AuditLog,
+    Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment, PurchaseInstallmentPayment,
 )
 from .serializers import (
     CategorySerializer, ProductSerializer, PromotionSerializer, CompanyInfoSerializer,
@@ -243,12 +243,103 @@ class CompanyInfoViewSet(AuditMixin, viewsets.ModelViewSet):
         return Response({'error': 'Company info not found'}, status=404)
 
 
+def annotate_customer_debt(queryset):
+    """Precalcula en el propio queryset (una sola query por campo, sin N+1)
+    los 4 totales que CustomerSerializer necesita por cliente. Sin esto, el
+    listado de clientes dispara 4 queries extra POR CLIENTE (80 en una
+    página de 20), que es lo que hacía lenta la consulta con muchos
+    clientes en producción."""
+    pending_statuses = [Installment.STATUS_PENDING, Installment.STATUS_OVERDUE]
+
+    debt_sq = Installment.objects.filter(
+        sale__customer=OuterRef('pk'), status__in=pending_statuses,
+    ).order_by().values('sale__customer').annotate(total=Sum('amount')).values('total')
+
+    installments_with_paid = Installment.objects.filter(
+        status__in=pending_statuses,
+    ).annotate(
+        paid=Coalesce(
+            Subquery(
+                InstallmentPayment.objects.filter(installment=OuterRef('pk'))
+                .order_by().values('installment').annotate(total=Sum('amount')).values('total')
+            ),
+            Decimal('0'),
+        ),
+    )
+
+    debt_remaining_sq = installments_with_paid.filter(
+        sale__customer=OuterRef('pk'),
+    ).order_by().values('sale__customer').annotate(
+        total=Sum(F('amount') - F('paid'))
+    ).values('total')
+
+    credit_sales_sq = Installment.objects.filter(
+        sale__customer=OuterRef('pk'),
+    ).order_by().values('sale__customer').annotate(total=Sum('amount')).values('total')
+
+    overdue_count_sq = Installment.objects.filter(
+        sale__customer=OuterRef('pk'), status=Installment.STATUS_OVERDUE,
+    ).order_by().values('sale__customer').annotate(total=Count('id')).values('total')
+
+    return queryset.annotate(
+        annotated_total_debt=Coalesce(Subquery(debt_sq), Decimal('0')),
+        annotated_total_debt_remaining=Coalesce(Subquery(debt_remaining_sq), Decimal('0')),
+        annotated_total_credit_sales=Coalesce(Subquery(credit_sales_sq), Decimal('0')),
+        annotated_overdue_count=Coalesce(Subquery(overdue_count_sq), 0),
+    )
+
+
+def annotate_supplier_debt(queryset):
+    """Equivalente a annotate_customer_debt, para proveedores."""
+    pending_statuses = [PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE]
+
+    owed_sq = PurchaseInstallment.objects.filter(
+        purchase_invoice__supplier=OuterRef('pk'), status__in=pending_statuses,
+    ).order_by().values('purchase_invoice__supplier').annotate(total=Sum('amount')).values('total')
+
+    purchase_installments_with_paid = PurchaseInstallment.objects.filter(
+        status__in=pending_statuses,
+    ).annotate(
+        paid=Coalesce(
+            Subquery(
+                PurchaseInstallmentPayment.objects.filter(installment=OuterRef('pk'))
+                .order_by().values('installment').annotate(total=Sum('amount')).values('total')
+            ),
+            Decimal('0'),
+        ),
+    )
+
+    owed_remaining_sq = purchase_installments_with_paid.filter(
+        purchase_invoice__supplier=OuterRef('pk'),
+    ).order_by().values('purchase_invoice__supplier').annotate(
+        total=Sum(F('amount') - F('paid'))
+    ).values('total')
+
+    credit_purchases_sq = PurchaseInstallment.objects.filter(
+        purchase_invoice__supplier=OuterRef('pk'),
+    ).order_by().values('purchase_invoice__supplier').annotate(total=Sum('amount')).values('total')
+
+    overdue_count_sq = PurchaseInstallment.objects.filter(
+        purchase_invoice__supplier=OuterRef('pk'), status=PurchaseInstallment.STATUS_OVERDUE,
+    ).order_by().values('purchase_invoice__supplier').annotate(total=Count('id')).values('total')
+
+    return queryset.annotate(
+        annotated_total_owed=Coalesce(Subquery(owed_sq), Decimal('0')),
+        annotated_total_owed_remaining=Coalesce(Subquery(owed_remaining_sq), Decimal('0')),
+        annotated_total_credit_purchases=Coalesce(Subquery(credit_purchases_sq), Decimal('0')),
+        annotated_overdue_count=Coalesce(Subquery(overdue_count_sq), 0),
+    )
+
+
 class CustomerViewSet(AuditMixin, viewsets.ModelViewSet):
     audit_fields = ['full_name', 'document_number', 'phone', 'email', 'address']
     queryset = Customer.objects.all().order_by('full_name')
     serializer_class = CustomerSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['full_name', 'document_number', 'phone', 'email']
+
+    def get_queryset(self):
+        return annotate_customer_debt(super().get_queryset())
 
     @action(detail=True, methods=['get'])
     def sales(self, request, pk=None):
@@ -264,6 +355,9 @@ class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
     serializer_class = SupplierSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'contact_name', 'phone', 'email', 'ruc']
+
+    def get_queryset(self):
+        return annotate_supplier_debt(super().get_queryset())
 
     @action(detail=True, methods=['get'])
     def purchases(self, request, pk=None):
