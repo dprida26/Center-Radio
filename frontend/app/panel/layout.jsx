@@ -1,9 +1,9 @@
-import PanelGuard from '@/components/panel/PanelGuard'
+import PanelLayoutClient from './PanelLayoutClient'
 
 export const metadata = {
   title: 'Panel de Gestión — Tienda Electrodomésticos',
 }
 
 export default function PanelLayout({ children }) {
-  return <PanelGuard>{children}</PanelGuard>
+  return <PanelLayoutClient>{children}</PanelLayoutClient>
 }

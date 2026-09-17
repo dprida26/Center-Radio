@@ -562,4 +562,37 @@ export const orderService = {
   },
 }
 
+async function downloadFile(url, params = {}) {
+  const response = await api.get(url, { params, responseType: 'blob' })
+  const disposition = response.headers['content-disposition'] || ''
+  const match = disposition.match(/filename="?([^"]+)"?/)
+  const filename = match ? match[1] : 'reporte.xlsx'
+
+  const blobUrl = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = blobUrl
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(blobUrl)
+}
+
+export const exportService = {
+  clientesConMora: (params = {}) => downloadFile('/customers/export_mora/', params),
+  stockProductos: () => downloadFile('/products/export_stock/'),
+  cuotasPorCobrar: (params = {}) => downloadFile('/installments/export_por_cobrar/', params),
+  previewMora: async (params = {}) => (await api.get('/customers/mora_preview/', { params })).data,
+  previewStock: async () => (await api.get('/products/stock_preview/')).data,
+  previewPorCobrar: async (params = {}) => (await api.get('/installments/por_cobrar_preview/', { params })).data,
+  ventas: (params = {}) => downloadFile('/sales/export_ventas/', params),
+  topProductos: (params = {}) => downloadFile('/sales/export_top_productos/', params),
+  resumenVentas: (params = {}) => downloadFile('/sales/export_resumen/', params),
+  previewVentas: async (params = {}) => (await api.get('/sales/ventas_preview/', { params })).data,
+  previewTopProductos: async (params = {}) => (await api.get('/sales/top_productos_preview/', { params })).data,
+  previewResumenVentas: async (params = {}) => (await api.get('/sales/resumen_preview/', { params })).data,
+  deudaProveedores: (params = {}) => downloadFile('/suppliers/export_deuda/', params),
+  previewDeudaProveedores: async (params = {}) => (await api.get('/suppliers/deuda_preview/', { params })).data,
+}
+
 export default api

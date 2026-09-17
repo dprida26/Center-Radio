@@ -4,7 +4,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.utils import timezone
-from django.db.models import Q, Sum, Count, F
+from django.db.models import Q, Sum, Count, F, Min, Max
 from django.db.models.functions import TruncMonth, TruncDay, TruncWeek
 from datetime import date, timedelta
 from decimal import Decimal
@@ -121,6 +121,55 @@ class ProductViewSet(AuditMixin, viewsets.ModelViewSet):
 
         serializer = self.get_serializer(products_on_promo, many=True)
         return Response(serializer.data)
+
+    def _stock_data(self):
+        from .reports_export import to_number
+        products = Product.objects.filter(is_active=True).select_related(
+            'category', 'usual_supplier'
+        ).order_by('category__name', 'name')
+        return [
+            {
+                'product_id': p.id,
+                'name': p.name, 'brand': p.brand, 'model': p.model,
+                'category_name': p.category.name if p.category else '',
+                'supplier_name': p.usual_supplier.name if p.usual_supplier else '',
+                'stock': p.stock, 'min_stock': p.min_stock,
+                'cost_price': to_number(p.cost_price), 'price': to_number(p.price),
+            }
+            for p in products
+        ]
+
+    @action(detail=False, methods=['get'], url_path='stock_preview')
+    def stock_preview(self, request):
+        return Response(self._stock_data())
+
+    @action(detail=False, methods=['get'])
+    def export_stock(self, request):
+        from .reports_export import build_xlsx_response
+
+        columns = [
+            {'header': 'Producto', 'width': 36},
+            {'header': 'Marca', 'width': 16},
+            {'header': 'Modelo', 'width': 16},
+            {'header': 'Categoría', 'width': 20},
+            {'header': 'Proveedor habitual', 'width': 24},
+            {'header': 'Stock', 'width': 10, 'format': 'number'},
+            {'header': 'Stock mínimo', 'width': 12, 'format': 'number'},
+            {'header': 'Precio de costo', 'width': 16, 'format': 'gs'},
+            {'header': 'Precio de venta', 'width': 16, 'format': 'gs'},
+        ]
+        data = self._stock_data()
+        rows = [
+            (r['name'], r['brand'], r['model'], r['category_name'], r['supplier_name'],
+             r['stock'], r['min_stock'], r['cost_price'], r['price'])
+            for r in data
+        ]
+        low_stock_count = sum(1 for r in data if r['stock'] <= r['min_stock'])
+        return build_xlsx_response(
+            'stock_productos.xlsx', 'Stock', columns, rows,
+            report_title='Reporte de Stock y Precios',
+            extra_meta=[f'Productos con stock bajo el mínimo: {low_stock_count}'],
+        )
 
     @action(detail=True, methods=['post'], url_path='images')
     def upload_images(self, request, pk=None):
@@ -257,6 +306,71 @@ class CustomerViewSet(AuditMixin, viewsets.ModelViewSet):
         serializer = SaleSerializer(sales, many=True)
         return Response(serializer.data)
 
+    def _mora_data(self, due_from=None, due_to=None):
+        from .reports_export import to_number
+        today = timezone.now().date()
+        overdue_q = (
+            Q(sales__installments__status=Installment.STATUS_OVERDUE) |
+            Q(sales__installments__status=Installment.STATUS_PENDING, sales__installments__due_date__lt=today)
+        )
+        if due_from:
+            overdue_q &= Q(sales__installments__due_date__gte=due_from)
+        if due_to:
+            overdue_q &= Q(sales__installments__due_date__lte=due_to)
+
+        customers = Customer.objects.annotate(
+            overdue_amount=Sum('sales__installments__amount', filter=overdue_q),
+            overdue_count=Count('sales__installments', filter=overdue_q),
+            oldest_due_date=Min('sales__installments__due_date', filter=overdue_q),
+        ).filter(overdue_count__gt=0).order_by('-overdue_amount')
+
+        return [
+            {
+                'customer_id': c.id,
+                'full_name': c.full_name,
+                'document_number': c.document_number,
+                'phone': c.phone or '',
+                'overdue_count': c.overdue_count,
+                'overdue_amount': to_number(c.overdue_amount),
+                'days_overdue': (today - c.oldest_due_date).days if c.oldest_due_date else 0,
+            }
+            for c in customers
+        ]
+
+    @action(detail=False, methods=['get'], url_path='mora_preview')
+    def mora_preview(self, request):
+        due_from = request.query_params.get('due_from') or None
+        due_to = request.query_params.get('due_to') or None
+        return Response(self._mora_data(due_from, due_to))
+
+    @action(detail=False, methods=['get'], url_path='export_mora')
+    def export_mora(self, request):
+        from .reports_export import build_xlsx_response
+
+        due_from = request.query_params.get('due_from') or None
+        due_to = request.query_params.get('due_to') or None
+
+        columns = [
+            {'header': 'Cliente', 'width': 32},
+            {'header': 'CI/RUC', 'width': 16},
+            {'header': 'Teléfono', 'width': 16},
+            {'header': 'Cuotas atrasadas', 'width': 16, 'format': 'number'},
+            {'header': 'Monto atrasado', 'width': 18, 'format': 'gs'},
+            {'header': 'Días de atraso (más antigua)', 'width': 22, 'format': 'number'},
+        ]
+        rows = [
+            (r['full_name'], r['document_number'], r['phone'], r['overdue_count'], r['overdue_amount'], r['days_overdue'])
+            for r in self._mora_data(due_from, due_to)
+        ]
+        extra_meta = []
+        if due_from or due_to:
+            extra_meta.append(f'Vencimiento: {due_from or "inicio"} a {due_to or "hoy"}')
+        return build_xlsx_response(
+            'clientes_con_mora.xlsx', 'Clientes con mora', columns, rows,
+            report_title='Reporte de Clientes con Mora',
+            extra_meta=extra_meta,
+        )
+
 
 class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
     audit_fields = ['name', 'contact_name', 'phone', 'email', 'address', 'ruc', 'is_active']
@@ -281,6 +395,101 @@ class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
         serializer = ProductSerializer(products, many=True, context={'request': request})
         return Response(serializer.data)
 
+    def _proveedores_range(self, request):
+        today = timezone.now().date()
+        date_from = request.query_params.get('date_from') or today.replace(day=1).isoformat()
+        date_to = request.query_params.get('date_to') or today.isoformat()
+        return date_from, date_to
+
+    def _proveedores_data(self, date_from, date_to):
+        from .reports_export import to_number
+        today = timezone.now().date()
+
+        invoices_in_range = PurchaseInvoice.objects.filter(
+            purchase_date__gte=date_from, purchase_date__lte=date_to,
+        )
+        supplier_ids_in_range = invoices_in_range.values_list('supplier_id', flat=True).distinct()
+        suppliers = Supplier.objects.filter(id__in=supplier_ids_in_range)
+
+        purchased_by_supplier = dict(
+            PurchaseInvoiceItem.objects.filter(purchase_invoice__in=invoices_in_range)
+            .values('purchase_invoice__supplier_id')
+            .annotate(total=Sum(F('unit_cost') * F('quantity')))
+            .values_list('purchase_invoice__supplier_id', 'total')
+        )
+        last_purchase_by_supplier = dict(
+            invoices_in_range.values('supplier_id')
+            .annotate(last_date=Max('purchase_date'))
+            .values_list('supplier_id', 'last_date')
+        )
+
+        # El saldo pendiente y las cuotas atrasadas se calculan con
+        # remaining_amount real (descuenta abonos parciales via payments),
+        # no el monto bruto de la cuota, y solo de las compras del rango
+        # seleccionado (no la deuda de otras compras fuera del período).
+        pending_installments = PurchaseInstallment.objects.filter(
+            status__in=[PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE],
+            purchase_invoice__in=invoices_in_range,
+        ).select_related('purchase_invoice').prefetch_related('payments')
+
+        pending_by_supplier = {}
+        overdue_count_by_supplier = {}
+        for inst in pending_installments:
+            supplier_id = inst.purchase_invoice.supplier_id
+            pending_by_supplier[supplier_id] = pending_by_supplier.get(supplier_id, Decimal('0')) + inst.remaining_amount
+            is_overdue = inst.status == PurchaseInstallment.STATUS_OVERDUE or (
+                inst.status == PurchaseInstallment.STATUS_PENDING and inst.due_date < today
+            )
+            if is_overdue:
+                overdue_count_by_supplier[supplier_id] = overdue_count_by_supplier.get(supplier_id, 0) + 1
+
+        result = []
+        for s in suppliers:
+            result.append({
+                'supplier_id': s.id,
+                'name': s.name,
+                'phone': s.phone or '',
+                'ruc': s.ruc or '',
+                'total_purchased': to_number(purchased_by_supplier.get(s.id) or 0),
+                'pending_amount': to_number(pending_by_supplier.get(s.id, Decimal('0'))),
+                'overdue_count': overdue_count_by_supplier.get(s.id, 0),
+                'last_purchase_date': (
+                    last_purchase_by_supplier[s.id].strftime('%d/%m/%Y')
+                    if last_purchase_by_supplier.get(s.id) else ''
+                ),
+            })
+        result.sort(key=lambda r: r['total_purchased'], reverse=True)
+        return result
+
+    @action(detail=False, methods=['get'], url_path='deuda_preview')
+    def deuda_preview(self, request):
+        date_from, date_to = self._proveedores_range(request)
+        return Response({'date_from': date_from, 'date_to': date_to, 'results': self._proveedores_data(date_from, date_to)})
+
+    @action(detail=False, methods=['get'], url_path='export_deuda')
+    def export_deuda(self, request):
+        from .reports_export import build_xlsx_response
+        date_from, date_to = self._proveedores_range(request)
+        data = self._proveedores_data(date_from, date_to)
+        columns = [
+            {'header': 'Proveedor', 'width': 30},
+            {'header': 'RUC', 'width': 14},
+            {'header': 'Teléfono', 'width': 16},
+            {'header': 'Comprado en el período', 'width': 20, 'format': 'gs'},
+            {'header': 'Saldo pendiente', 'width': 18, 'format': 'gs'},
+            {'header': 'Cuotas atrasadas', 'width': 16, 'format': 'number'},
+            {'header': 'Última compra', 'width': 16},
+        ]
+        rows = [
+            (r['name'], r['ruc'], r['phone'], r['total_purchased'], r['pending_amount'], r['overdue_count'], r['last_purchase_date'])
+            for r in data
+        ]
+        return build_xlsx_response(
+            'proveedores_con_deuda.xlsx', 'Proveedores', columns, rows,
+            report_title='Reporte de Proveedores',
+            extra_meta=[f'Período: {date_from} a {date_to}'],
+        )
+
 
 class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
     queryset = Sale.objects.all().select_related('customer').prefetch_related(
@@ -296,6 +505,151 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
             item.product.register_sale_exit(item.quantity, reason=f'Venta #{sale.id}')
         sale.generate_installments()
         log_action(self.request.user, AuditLog.ACTION_CREATE, sale)
+
+    def _ventas_range(self, request):
+        today = timezone.now().date()
+        date_from = request.query_params.get('date_from') or today.replace(day=1).isoformat()
+        date_to = request.query_params.get('date_to') or today.isoformat()
+        return date_from, date_to
+
+    def _ventas_data(self, date_from, date_to):
+        from .reports_export import to_number
+        payment_labels = {Sale.PAYMENT_CASH: 'Contado', Sale.PAYMENT_INSTALLMENTS: 'Cuotas'}
+        sales = Sale.objects.filter(
+            sale_date__gte=date_from, sale_date__lte=date_to
+        ).select_related('customer').prefetch_related('items', 'items__product').order_by('-sale_date', '-created_at')
+        data = []
+        for sale in sales:
+            items = list(sale.items.all())
+            product_name = ', '.join(i.product.name for i in items[:2]) + (f' +{len(items)-2}' if len(items) > 2 else '')
+            data.append({
+                'sale_id': sale.id,
+                'sale_date': sale.sale_date.strftime('%d/%m/%Y'),
+                'customer_id': sale.customer_id,
+                'customer_name': sale.customer.full_name,
+                'document_number': sale.customer.document_number,
+                'product_name': product_name,
+                'payment_type': sale.payment_type,
+                'payment_type_label': payment_labels.get(sale.payment_type, sale.payment_type),
+                'total_amount': to_number(sale.total_amount),
+            })
+        return data
+
+    @action(detail=False, methods=['get'], url_path='ventas_preview')
+    def ventas_preview(self, request):
+        date_from, date_to = self._ventas_range(request)
+        return Response({'date_from': date_from, 'date_to': date_to, 'results': self._ventas_data(date_from, date_to)})
+
+    @action(detail=False, methods=['get'], url_path='export_ventas')
+    def export_ventas(self, request):
+        from .reports_export import build_xlsx_response
+        date_from, date_to = self._ventas_range(request)
+        data = self._ventas_data(date_from, date_to)
+        columns = [
+            {'header': 'Fecha', 'width': 12},
+            {'header': 'Cliente', 'width': 28},
+            {'header': 'CI/RUC', 'width': 14},
+            {'header': 'Producto(s)', 'width': 30},
+            {'header': 'Tipo de pago', 'width': 12},
+            {'header': 'Total', 'width': 16, 'format': 'gs'},
+        ]
+        rows = [
+            (r['sale_date'], r['customer_name'], r['document_number'], r['product_name'], r['payment_type_label'], r['total_amount'])
+            for r in data
+        ]
+        return build_xlsx_response(
+            'ventas_por_periodo.xlsx', 'Ventas', columns, rows,
+            report_title='Reporte de Ventas por Período',
+            extra_meta=[f'Período: {date_from} a {date_to}'],
+        )
+
+    def _top_productos_data(self, date_from, date_to):
+        from .reports_export import to_number
+        rows = list(
+            SaleItem.objects.filter(sale__sale_date__gte=date_from, sale__sale_date__lte=date_to)
+            .values('product_id', 'product__name')
+            .annotate(units=Sum('quantity'), total=Sum(F('unit_price') * F('quantity')))
+            .order_by('-units')
+        )
+        return [
+            {'product_id': r['product_id'], 'name': r['product__name'], 'units': r['units'], 'total': to_number(r['total'])}
+            for r in rows
+        ]
+
+    @action(detail=False, methods=['get'], url_path='top_productos_preview')
+    def top_productos_preview(self, request):
+        date_from, date_to = self._ventas_range(request)
+        return Response({'date_from': date_from, 'date_to': date_to, 'results': self._top_productos_data(date_from, date_to)})
+
+    @action(detail=False, methods=['get'], url_path='export_top_productos')
+    def export_top_productos(self, request):
+        from .reports_export import build_xlsx_response
+        date_from, date_to = self._ventas_range(request)
+        data = self._top_productos_data(date_from, date_to)
+        columns = [
+            {'header': 'Producto', 'width': 32},
+            {'header': 'Unidades vendidas', 'width': 16, 'format': 'number'},
+            {'header': 'Total vendido', 'width': 16, 'format': 'gs'},
+        ]
+        rows = [(r['name'], r['units'], r['total']) for r in data]
+        return build_xlsx_response(
+            'productos_mas_vendidos.xlsx', 'Productos más vendidos', columns, rows,
+            report_title='Reporte de Productos Más Vendidos',
+            extra_meta=[f'Período: {date_from} a {date_to}'],
+        )
+
+    def _resumen_data(self, date_from, date_to):
+        from .reports_export import to_number
+        sales_qs = Sale.objects.filter(sale_date__gte=date_from, sale_date__lte=date_to)
+        item_summary = SaleItem.objects.filter(sale__in=sales_qs).aggregate(
+            total_revenue=Sum(F('unit_price') * F('quantity')),
+            total_units=Sum('quantity'),
+        )
+        total_revenue = item_summary['total_revenue'] or 0
+        total_sales = sales_qs.count()
+        avg_ticket = (total_revenue / total_sales) if total_sales else 0
+
+        pending_credit = Decimal('0')
+        for sale in sales_qs.filter(payment_type=Sale.PAYMENT_INSTALLMENTS).prefetch_related('installments'):
+            pending_credit += sale.remaining_amount
+        received_amount = total_revenue - pending_credit
+
+        return {
+            'total_revenue': to_number(total_revenue),
+            'received_amount': to_number(received_amount),
+            'pending_credit': to_number(pending_credit),
+            'total_sales': total_sales,
+            'total_units': item_summary['total_units'] or 0,
+            'avg_ticket': to_number(round(avg_ticket, 2)) if total_sales else 0,
+        }
+
+    @action(detail=False, methods=['get'], url_path='resumen_preview')
+    def resumen_preview(self, request):
+        date_from, date_to = self._ventas_range(request)
+        return Response({'date_from': date_from, 'date_to': date_to, **self._resumen_data(date_from, date_to)})
+
+    @action(detail=False, methods=['get'], url_path='export_resumen')
+    def export_resumen(self, request):
+        from .reports_export import build_xlsx_response
+        date_from, date_to = self._ventas_range(request)
+        r = self._resumen_data(date_from, date_to)
+        columns = [
+            {'header': 'Indicador', 'width': 24},
+            {'header': 'Valor', 'width': 18},
+        ]
+        rows = [
+            ('Ingresos totales', r['total_revenue']),
+            ('Monto ya recibido', r['received_amount']),
+            ('Créditos pendientes de cobro', r['pending_credit']),
+            ('Cantidad de ventas', r['total_sales']),
+            ('Unidades vendidas', r['total_units']),
+            ('Promedio por venta', r['avg_ticket']),
+        ]
+        return build_xlsx_response(
+            'resumen_ventas.xlsx', 'Resumen', columns, rows,
+            report_title='Resumen de Ventas',
+            extra_meta=[f'Período: {date_from} a {date_to}'],
+        )
 
 
 class PurchaseInvoiceViewSet(AuditMixin, viewsets.ModelViewSet):
@@ -373,7 +727,82 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         if due_before:
             qs = qs.filter(due_date__lte=due_before)
 
+        due_from = self.request.query_params.get('due_from')
+        if due_from:
+            qs = qs.filter(due_date__gte=due_from)
+        due_to = self.request.query_params.get('due_to')
+        if due_to:
+            qs = qs.filter(due_date__lte=due_to)
+
         return qs.order_by('due_date')
+
+    @action(detail=False, methods=['get'], url_path='export_por_cobrar')
+    def _por_cobrar_range(self, request):
+        from dateutil.relativedelta import relativedelta
+        today = timezone.now().date()
+        due_from = request.query_params.get('due_from') or today.replace(day=1).isoformat()
+        due_to = request.query_params.get('due_to') or (
+            today.replace(day=1) + relativedelta(months=1, days=-1)
+        ).isoformat()
+        return due_from, due_to
+
+    def _por_cobrar_data(self, due_from, due_to):
+        from .reports_export import to_number
+        today = timezone.now().date()
+        qs = self.get_queryset().filter(due_date__gte=due_from, due_date__lte=due_to).exclude(
+            status=Installment.STATUS_PAID
+        )
+        status_labels = {'PENDING': 'Pendiente', 'OVERDUE': 'Atrasada'}
+        data = []
+        for inst in qs:
+            items = list(inst.sale.items.all())
+            product_name = ', '.join(i.product.name for i in items[:2]) + (f' +{len(items)-2}' if len(items) > 2 else '')
+            real_status = 'OVERDUE' if (inst.status == Installment.STATUS_PENDING and inst.due_date < today) else inst.status
+            data.append({
+                'customer_name': inst.sale.customer.full_name,
+                'document_number': inst.sale.customer.document_number,
+                'phone': inst.sale.customer.phone or '',
+                'product_name': product_name,
+                'installment_label': f'{inst.number}/{inst.sale.installment_count}',
+                'due_date': inst.due_date.strftime('%d/%m/%Y'),
+                'amount': to_number(inst.amount),
+                'status': real_status,
+                'status_label': status_labels.get(real_status, real_status),
+            })
+        return data
+
+    @action(detail=False, methods=['get'], url_path='por_cobrar_preview')
+    def por_cobrar_preview(self, request):
+        due_from, due_to = self._por_cobrar_range(request)
+        return Response({'due_from': due_from, 'due_to': due_to, 'results': self._por_cobrar_data(due_from, due_to)})
+
+    @action(detail=False, methods=['get'], url_path='export_por_cobrar')
+    def export_por_cobrar(self, request):
+        from .reports_export import build_xlsx_response
+        due_from, due_to = self._por_cobrar_range(request)
+        data = self._por_cobrar_data(due_from, due_to)
+
+        columns = [
+            {'header': 'Cliente', 'width': 32},
+            {'header': 'CI/RUC', 'width': 16},
+            {'header': 'Teléfono', 'width': 16},
+            {'header': 'Producto', 'width': 30},
+            {'header': 'Cuota', 'width': 10},
+            {'header': 'Vencimiento', 'width': 14},
+            {'header': 'Monto', 'width': 16, 'format': 'gs'},
+            {'header': 'Estado', 'width': 14},
+        ]
+        rows = [
+            (r['customer_name'], r['document_number'], r['phone'], r['product_name'],
+             r['installment_label'], r['due_date'], r['amount'], r['status_label'])
+            for r in data
+        ]
+
+        return build_xlsx_response(
+            'cuotas_por_cobrar.xlsx', 'Cuotas por cobrar', columns, rows,
+            report_title='Reporte de Cuotas por Cobrar',
+            extra_meta=[f'Período: {due_from} a {due_to}'],
+        )
 
     @action(detail=True, methods=['post'])
     def mark_paid(self, request, pk=None):

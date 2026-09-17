@@ -1,68 +1,43 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  BarChart3, TrendingUp, DollarSign, ShoppingBag, Users, AlertTriangle,
-  Package, Loader2, Printer, TrendingDown, Wallet, Truck, Clock, Inbox,
+  BarChart3, TrendingUp, ShoppingBag, Users, AlertTriangle,
+  Package, Loader2, Printer, Truck, Clock, Inbox,
+  FileSpreadsheet, Download, UserX, Boxes, CalendarClock,
 } from 'lucide-react'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
-import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  BarChart, Bar, PieChart, Pie, Cell, Legend,
-} from 'recharts'
-import { reportService, categoryService, installmentService } from '@/services/api'
+import { reportService, installmentService, exportService } from '@/services/api'
 import { printElementById } from '@/lib/printCard'
 
-const PAYMENT_LABELS = { CASH: 'Contado', INSTALLMENTS: 'Cuotas' }
 const STATUS_LABELS = { PENDING: 'Pendiente', CONTACTED: 'Contactado', CONVERTED: 'Convertido', DISCARDED: 'Descartado' }
-const PIE_COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4']
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
-}
-
-function formatGsCompact(value) {
-  const n = parseFloat(value) || 0
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`
-  return n.toString()
-}
-
-function formatPeriod(period) {
-  const d = new Date(`${period}T00:00:00`)
-  return d.toLocaleDateString('es-PY', { day: '2-digit', month: 'short' })
 }
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
-function monthsAgoISO(months) {
+function monthStartISO() {
   const d = new Date()
-  d.setMonth(d.getMonth() - months)
-  return d.toISOString().slice(0, 10)
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
 }
 
 export default function ReportesPage() {
   const { info } = useCompanyInfo()
   const [filters, setFilters] = useState({
-    date_from: monthsAgoISO(3),
+    date_from: monthStartISO(),
     date_to: todayISO(),
-    category_id: '',
-    payment_type: '',
   })
-  const [categories, setCategories] = useState([])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [tab, setTab] = useState('ventas')
   const [dueInstallments, setDueInstallments] = useState([])
   const [dueLoading, setDueLoading] = useState(true)
-
-  useEffect(() => {
-    categoryService.getAll().then(setCategories).catch(() => {})
-  }, [])
 
   useEffect(() => {
     setDueLoading(true)
@@ -76,35 +51,12 @@ export default function ReportesPage() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    const params = {
-      date_from: filters.date_from,
-      date_to: filters.date_to,
-      ...(filters.category_id ? { category_id: filters.category_id } : {}),
-      ...(filters.payment_type ? { payment_type: filters.payment_type } : {}),
-    }
     reportService
-      .get(params)
+      .get({ date_from: filters.date_from, date_to: filters.date_to })
       .then(setData)
       .catch(() => setError('No se pudieron cargar los reportes.'))
       .finally(() => setLoading(false))
   }, [filters])
-
-  const paymentPieData = useMemo(() => {
-    if (!data) return []
-    return data.by_payment_type.map((row) => ({
-      name: PAYMENT_LABELS[row.payment_type] || row.payment_type,
-      value: parseFloat(row.total),
-    }))
-  }, [data])
-
-  const chartData = useMemo(() => {
-    if (!data) return []
-    return data.sales_over_time.map((row) => ({
-      period: formatPeriod(row.period),
-      total: parseFloat(row.total),
-      count: row.count,
-    }))
-  }, [data])
 
   return (
     <div className="space-y-6">
@@ -143,9 +95,11 @@ export default function ReportesPage() {
         </div>
       )}
 
-      <div className="print:hidden">
-        <FiltersBar filters={filters} setFilters={setFilters} categories={categories} />
-      </div>
+      {tab === 'cobranza' && (
+        <div className="print:hidden">
+          <SimpleDateRangeBar filters={filters} setFilters={setFilters} />
+        </div>
+      )}
 
       <div className="flex gap-1 border-b border-gray-200 print:hidden overflow-x-auto">
         {TABS.map((t) => (
@@ -177,105 +131,7 @@ export default function ReportesPage() {
         <p className="text-red-600">{error}</p>
       ) : (
         <>
-        {tab === 'ventas' && (
-        <>
-          <SummaryCards data={data} />
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:grid-cols-3">
-            <PrintableCard id="card-ventas-tiempo" className="lg:col-span-2 print:col-span-2 p-6">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4">Ventas en el tiempo</h2>
-              {chartData.length === 0 ? (
-                <EmptyState text="No hay ventas en el período seleccionado." />
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="period" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={formatGsCompact} tick={{ fontSize: 12 }} width={50} />
-                    <Tooltip formatter={(value) => formatGs(value)} labelFormatter={(l) => `Período: ${l}`} />
-                    <Line type="monotone" dataKey="total" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </PrintableCard>
-
-            <PrintableCard id="card-contado-cuotas" className="p-6">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4">Contado vs Cuotas</h2>
-              {paymentPieData.length === 0 ? (
-                <EmptyState text="Sin datos." />
-              ) : (
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-                    <Pie
-                      data={paymentPieData}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={75}
-                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {paymentPieData.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => formatGs(value)} />
-                    <Legend verticalAlign="bottom" height={36} />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </PrintableCard>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RankingCard
-              id="card-productos-mas-vendidos"
-              title="Productos más vendidos"
-              icon={Package}
-              rows={data.top_products}
-              renderRow={(row) => (
-                <>
-                  <span className="text-gray-700">{row.name}</span>
-                  <span className="text-gray-500 text-xs">{row.units} uds.</span>
-                  <span className="font-semibold text-gray-900">{formatGs(row.total)}</span>
-                </>
-              )}
-            />
-            <RankingCard
-              id="card-categorias-mas-vendidas"
-              title="Categorías más vendidas"
-              icon={BarChart3}
-              rows={data.top_categories}
-              renderRow={(row) => (
-                <>
-                  <span className="text-gray-700">{row.name}</span>
-                  <span className="text-gray-500 text-xs">{row.units} uds.</span>
-                  <span className="font-semibold text-gray-900">{formatGs(row.total)}</span>
-                </>
-              )}
-            />
-          </div>
-
-          <PrintableCard id="card-gastos-categoria" className="p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <TrendingDown size={16} className="text-red-500" />
-              Gastos por categoría
-            </h2>
-            {data.expenses_by_category.length === 0 ? (
-              <EmptyState text="No hay gastos registrados en este período." />
-            ) : (
-              <ul className="space-y-2.5">
-                {data.expenses_by_category.map((row) => (
-                  <li key={row.category} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm">
-                    <span className="text-gray-700">{row.category_display}</span>
-                    <span className="text-gray-500 text-xs">{row.count} gasto(s)</span>
-                    <span className="font-semibold text-gray-900">{formatGs(row.total)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PrintableCard>
-        </>
-        )}
+        {tab === 'ventas' && <ReportesVentas />}
 
         {tab === 'cobranza' && (
         <>
@@ -335,41 +191,7 @@ export default function ReportesPage() {
         </>
         )}
 
-        {tab === 'proveedores' && (
-          <PrintableCard id="card-cuentas-por-pagar" className="p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-              <Truck size={16} className="text-amber-500" />
-              Cuentas por pagar a proveedores
-            </h2>
-            <div className="grid grid-cols-3 gap-3 mb-5">
-              <CollectionBox label="Pagado" value={data.payables.paid} className="bg-green-50 text-green-700" />
-              <CollectionBox label="Pendiente" value={data.payables.pending} className="bg-amber-50 text-amber-700" />
-              <CollectionBox label="Atrasado" value={data.payables.overdue} className="bg-red-50 text-red-700" />
-            </div>
-            <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2">Proveedores con mayor deuda</h3>
-            {data.top_creditors.length === 0 ? (
-              <EmptyState text="No hay deudas pendientes con proveedores." />
-            ) : (
-              <ul className="space-y-2">
-                {data.top_creditors.slice(0, 6).map((s) => (
-                  <li key={s.id} className="flex items-center justify-between text-sm">
-                    <Link href={`/panel/proveedores/${s.id}`} className="text-blue-600 hover:underline truncate">
-                      {s.name}
-                    </Link>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {s.overdue_count > 0 && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">
-                          {s.overdue_count} atrasada(s)
-                        </span>
-                      )}
-                      <span className="font-semibold text-gray-900">{formatGs(s.debt)}</span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </PrintableCard>
-        )}
+        {tab === 'proveedores' && <ProveedoresReport />}
 
         {tab === 'pedidos' && (
           <PrintableCard id="card-pedidos-web" className="p-6">
@@ -386,9 +208,713 @@ export default function ReportesPage() {
             </div>
           </PrintableCard>
         )}
+
+        {tab === 'operativos' && <ReportesOperativos />}
         </>
       )}
     </div>
+  )
+}
+
+const VENTAS_REPORTS = [
+  { key: 'listado', label: 'Listado de ventas', icon: ShoppingBag, color: 'blue' },
+  { key: 'top_productos', label: 'Productos más vendidos', icon: Package, color: 'amber' },
+  { key: 'resumen', label: 'Resumen', icon: TrendingUp, color: 'green' },
+]
+
+function useDateRange() {
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+  })
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
+  return [dateFrom, setDateFrom, dateTo, setDateTo]
+}
+
+function DateRangeFilter({ dateFrom, setDateFrom, dateTo, setDateTo }) {
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="date"
+        autoComplete="off"
+        value={dateFrom}
+        onChange={(e) => setDateFrom(e.target.value)}
+        className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <span className="text-gray-400 text-xs">a</span>
+      <input
+        type="date"
+        autoComplete="off"
+        value={dateTo}
+        onChange={(e) => setDateTo(e.target.value)}
+        className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
+  )
+}
+
+function ReportesVentas() {
+  const [reportKey, setReportKey] = useState('listado')
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {VENTAS_REPORTS.map((r) => (
+          <button
+            key={r.key}
+            onClick={() => setReportKey(r.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+              reportKey === r.key
+                ? 'bg-gray-900 text-white border-gray-900'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <r.icon size={16} />
+            {r.label}
+          </button>
+        ))}
+      </div>
+
+      {reportKey === 'listado' && <ListadoVentasReport />}
+      {reportKey === 'top_productos' && <TopProductosReport />}
+      {reportKey === 'resumen' && <ResumenVentasReport />}
+    </div>
+  )
+}
+
+function ListadoVentasReport() {
+  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewVentas({ date_from: dateFrom, date_to: dateTo })
+      .then((data) => setRows(data.results))
+      .finally(() => setLoading(false))
+  }, [dateFrom, dateTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.ventas({ date_from: dateFrom, date_to: dateTo })
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={ShoppingBag}
+      color="blue"
+      title="Listado de ventas"
+      description="Detalle de ventas del período: cliente, producto(s), tipo de pago y total."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay ventas en ese período." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[750px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Fecha</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Cliente</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Producto(s)</th>
+                <th className="px-5 py-3 font-medium text-center whitespace-nowrap">Tipo de pago</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.sale_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.sale_date}</td>
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <Link href={`/panel/clientes/${r.customer_id ?? ''}`} className="font-medium text-gray-900">
+                      {r.customer_name}
+                    </Link>
+                    <p className="text-xs text-gray-400">{r.document_number}</p>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.product_name}</td>
+                  <td className="px-5 py-3 text-center whitespace-nowrap">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      r.payment_type === 'INSTALLMENTS' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                    }`}>
+                      {r.payment_type_label}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.total_amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+function TopProductosReport() {
+  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewTopProductos({ date_from: dateFrom, date_to: dateTo })
+      .then((data) => setRows(data.results))
+      .finally(() => setLoading(false))
+  }, [dateFrom, dateTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.topProductos({ date_from: dateFrom, date_to: dateTo })
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={Package}
+      color="amber"
+      title="Productos más vendidos"
+      description="Ranking de productos por unidades y monto vendido en el período."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay ventas en ese período." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[500px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Producto</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Unidades</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Total vendido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.product_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 font-medium text-gray-900 whitespace-nowrap">{r.name}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{r.units}</td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+function ResumenVentasReport() {
+  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewResumenVentas({ date_from: dateFrom, date_to: dateTo })
+      .then(setSummary)
+      .finally(() => setLoading(false))
+  }, [dateFrom, dateTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.resumenVentas({ date_from: dateFrom, date_to: dateTo })
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const cards = summary ? [
+    { label: 'Ingresos totales', value: formatGs(summary.total_revenue), className: 'text-gray-700 bg-gray-100' },
+    { label: 'Monto ya recibido', value: formatGs(summary.received_amount), className: 'text-green-600 bg-green-50' },
+    { label: 'Créditos pendientes de cobro', value: formatGs(summary.pending_credit), className: 'text-red-600 bg-red-50' },
+    { label: 'Cantidad de ventas', value: summary.total_sales, className: 'text-blue-600 bg-blue-50' },
+    { label: 'Unidades vendidas', value: summary.total_units, className: 'text-amber-600 bg-amber-50' },
+    { label: 'Promedio por venta', value: formatGs(summary.avg_ticket), className: 'text-purple-600 bg-purple-50' },
+  ] : []
+
+  return (
+    <ReportPanel
+      icon={TrendingUp}
+      color="green"
+      title="Resumen de ventas"
+      description="Totales del período: ingresos, cantidad de ventas, unidades y ticket promedio."
+      downloading={downloading}
+      onExport={handleExport}
+      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-6">
+          {cards.map((c) => (
+            <div key={c.label} className={`rounded-lg p-4 ${c.className}`}>
+              <p className="text-xl font-bold">{c.value}</p>
+              <p className="text-xs mt-1 opacity-75">{c.label}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+function ProveedoresReport() {
+  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewDeudaProveedores({ date_from: dateFrom, date_to: dateTo })
+      .then((data) => setRows(data.results))
+      .finally(() => setLoading(false))
+  }, [dateFrom, dateTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.deudaProveedores({ date_from: dateFrom, date_to: dateTo })
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={Truck}
+      color="amber"
+      title="Proveedores"
+      description="Compras realizadas en el período, saldo pendiente y cuotas atrasadas de esas compras."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay compras a proveedores en ese período." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[750px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Proveedor</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Teléfono</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Comprado en el período</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Saldo pendiente</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Cuotas atrasadas</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Última compra</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.supplier_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <Link href={`/panel/proveedores/${r.supplier_id}`} className="font-medium text-blue-600 hover:underline">
+                      {r.name}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.phone || '—'}</td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.total_purchased)}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{formatGs(r.pending_amount)}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    {r.overdue_count > 0 ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                        {r.overdue_count}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">0</span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.last_purchase_date || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+const OPERATIVOS_REPORTS = [
+  { key: 'mora', label: 'Clientes con mora', icon: UserX, color: 'red' },
+  { key: 'stock', label: 'Stock y precios', icon: Boxes, color: 'blue' },
+  { key: 'por_cobrar', label: 'Cuotas por cobrar', icon: CalendarClock, color: 'amber' },
+]
+
+function ReportesOperativos() {
+  const [reportKey, setReportKey] = useState('mora')
+  const active = OPERATIVOS_REPORTS.find((r) => r.key === reportKey)
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {OPERATIVOS_REPORTS.map((r) => (
+          <button
+            key={r.key}
+            onClick={() => setReportKey(r.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+              reportKey === r.key
+                ? 'bg-gray-900 text-white border-gray-900'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <r.icon size={16} />
+            {r.label}
+          </button>
+        ))}
+      </div>
+
+      {reportKey === 'mora' && <MoraReport />}
+      {reportKey === 'stock' && <StockReport />}
+      {reportKey === 'por_cobrar' && <PorCobrarReport />}
+    </div>
+  )
+}
+
+function ReportPanel({ icon: Icon, color, title, description, filters, count, downloading, onExport, children }) {
+  const colorClasses = {
+    red: 'bg-red-50 text-red-600',
+    blue: 'bg-blue-50 text-blue-600',
+    amber: 'bg-amber-50 text-amber-600',
+    green: 'bg-green-50 text-green-600',
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${colorClasses[color] || colorClasses.blue}`}>
+            <Icon size={20} />
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900">{title}</h3>
+            <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+            {count !== undefined && (
+              <p className="text-xs text-gray-400 mt-1">{count} registro(s)</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {filters}
+          <button
+            onClick={onExport}
+            disabled={downloading}
+            className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors whitespace-nowrap"
+          >
+            {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            {downloading ? 'Generando...' : 'Exportar a Excel'}
+          </button>
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function MoraReport() {
+  const [dueFrom, setDueFrom] = useState('')
+  const [dueTo, setDueTo] = useState('')
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    const params = { ...(dueFrom ? { due_from: dueFrom } : {}), ...(dueTo ? { due_to: dueTo } : {}) }
+    exportService.previewMora(params).then(setRows).finally(() => setLoading(false))
+  }, [dueFrom, dueTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      const params = { ...(dueFrom ? { due_from: dueFrom } : {}), ...(dueTo ? { due_to: dueTo } : {}) }
+      await exportService.clientesConMora(params)
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={UserX}
+      color="red"
+      title="Clientes con mora"
+      description="Clientes con cuotas atrasadas, ordenados de mayor a menor monto adeudado."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+      filters={<DateRangeFilter dateFrom={dueFrom} setDateFrom={setDueFrom} dateTo={dueTo} setDateTo={setDueTo} />}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay clientes con cuotas atrasadas." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[700px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Cliente</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">CI/RUC</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Teléfono</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Cuotas atrasadas</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Monto atrasado</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Días (más antigua)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.customer_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <Link href={`/panel/clientes/${r.customer_id}`} className="font-medium text-blue-600 hover:underline">
+                      {r.full_name}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.document_number}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.phone || '—'}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                      {r.overdue_count}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.overdue_amount)}</td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{r.days_overdue}d</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+function StockReport() {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewStock().then(setRows).finally(() => setLoading(false))
+  }, [])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.stockProductos()
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={Boxes}
+      color="blue"
+      title="Stock y precios"
+      description="Productos activos con stock, categoría, proveedor habitual y precios."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay productos activos." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[800px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Producto</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Categoría</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Proveedor</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Stock</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Costo</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Precio venta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.product_id} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <p className="font-medium text-gray-900">{r.name}</p>
+                    <p className="text-xs text-gray-400">{r.brand} {r.model}</p>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.category_name || '—'}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.supplier_name || '—'}</td>
+                  <td className="px-5 py-3 text-right whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      r.stock <= r.min_stock ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {r.stock}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-right text-gray-600 whitespace-nowrap">{formatGs(r.cost_price)}</td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.price)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+function PorCobrarReport() {
+  const [dueFrom, setDueFrom] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
+  })
+  const [dueTo, setDueTo] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10)
+  })
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewPorCobrar({ due_from: dueFrom, due_to: dueTo })
+      .then((data) => setRows(data.results))
+      .finally(() => setLoading(false))
+  }, [dueFrom, dueTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.cuotasPorCobrar({ due_from: dueFrom, due_to: dueTo })
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={CalendarClock}
+      color="amber"
+      title="Cuotas por cobrar"
+      description="Cuotas pendientes y atrasadas que vencen en el rango elegido."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+      filters={
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={dueFrom}
+            onChange={(e) => setDueFrom(e.target.value)}
+            className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-gray-400 text-xs">a</span>
+          <input
+            type="date"
+            value={dueTo}
+            onChange={(e) => setDueTo(e.target.value)}
+            className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      }
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No hay cuotas por cobrar en ese período." />
+      ) : (
+        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+          <table className="w-full text-sm min-w-[750px]">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="text-left text-gray-500">
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Cliente</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Producto</th>
+                <th className="px-5 py-3 font-medium text-center whitespace-nowrap">Cuota</th>
+                <th className="px-5 py-3 font-medium whitespace-nowrap">Vencimiento</th>
+                <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Monto</th>
+                <th className="px-5 py-3 font-medium text-center whitespace-nowrap">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, idx) => (
+                <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-5 py-3 whitespace-nowrap">
+                    <p className="font-medium text-gray-900">{r.customer_name}</p>
+                    <p className="text-xs text-gray-400">{r.document_number}</p>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.product_name}</td>
+                  <td className="px-5 py-3 text-center text-gray-600 whitespace-nowrap">{r.installment_label}</td>
+                  <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.due_date}</td>
+                  <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.amount)}</td>
+                  <td className="px-5 py-3 text-center whitespace-nowrap">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      r.status === 'OVERDUE' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      {r.status_label}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </ReportPanel>
   )
 }
 
@@ -397,6 +923,7 @@ const TABS = [
   { key: 'cobranza', label: 'Cobranza', icon: AlertTriangle },
   { key: 'proveedores', label: 'Proveedores', icon: Truck },
   { key: 'pedidos', label: 'Pedidos', icon: Inbox },
+  { key: 'operativos', label: 'Reportes Operativos', icon: FileSpreadsheet },
 ]
 
 function daysUntil(dateStr) {
@@ -481,88 +1008,30 @@ function DueInstallmentsReport({ installments, loading }) {
   )
 }
 
-function FiltersBar({ filters, setFilters, categories }) {
+function SimpleDateRangeBar({ filters, setFilters }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap items-end gap-5">
-      <div className="flex items-end gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Desde</label>
-          <input
-            type="date"
-            value={filters.date_from}
-            onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <span className="text-gray-300 pb-2.5">→</span>
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Hasta</label>
-          <input
-            type="date"
-            value={filters.date_to}
-            onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap items-end gap-4">
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Desde</label>
+        <input
+          type="date"
+          autoComplete="off"
+          value={filters.date_from}
+          onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
       </div>
-
-      <div className="hidden sm:block w-px self-stretch bg-gray-200" />
-
-      <div className="flex flex-wrap items-end gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Categoría</label>
-          <select
-            value={filters.category_id}
-            onChange={(e) => setFilters((f) => ({ ...f, category_id: e.target.value }))}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Todas</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Tipo de pago</label>
-          <select
-            value={filters.payment_type}
-            onChange={(e) => setFilters((f) => ({ ...f, payment_type: e.target.value }))}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="">Todos</option>
-            <option value="CASH">Contado</option>
-            <option value="INSTALLMENTS">Cuotas</option>
-          </select>
-        </div>
+      <span className="text-gray-300 pb-2.5">→</span>
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Hasta</label>
+        <input
+          type="date"
+          autoComplete="off"
+          value={filters.date_to}
+          onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
       </div>
-    </div>
-  )
-}
-
-function SummaryCards({ data }) {
-  const netProfit = parseFloat(data.summary.net_profit)
-  const cards = [
-    { label: 'Ingresos totales', value: formatGs(data.summary.total_revenue), icon: DollarSign, className: 'text-green-600 bg-green-50' },
-    { label: 'Gastos', value: formatGs(data.summary.total_expenses), icon: TrendingDown, className: 'text-red-600 bg-red-50' },
-    {
-      label: 'Ganancia neta', value: formatGs(data.summary.net_profit), icon: Wallet,
-      className: netProfit >= 0 ? 'text-emerald-700 bg-emerald-50' : 'text-red-700 bg-red-50',
-    },
-    { label: 'Ventas', value: data.summary.total_sales, icon: ShoppingBag, className: 'text-blue-600 bg-blue-50' },
-    { label: 'Ticket promedio', value: formatGs(data.summary.avg_ticket), icon: TrendingUp, className: 'text-purple-600 bg-purple-50' },
-    { label: 'Unidades vendidas', value: data.summary.total_units, icon: Package, className: 'text-amber-600 bg-amber-50' },
-  ]
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 print:grid-cols-3 print:break-inside-avoid">
-      {cards.map((c) => (
-        <div key={c.label} className="bg-white rounded-xl border border-gray-200 p-5 print:border-gray-300">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${c.className}`}>
-            <c.icon size={18} />
-          </div>
-          <p className="text-xl font-bold text-gray-900">{c.value}</p>
-          <p className="text-xs text-gray-500 mt-1">{c.label}</p>
-        </div>
-      ))}
     </div>
   )
 }
