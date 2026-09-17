@@ -3,64 +3,27 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import {
-  BarChart3, TrendingUp, ShoppingBag, Users, AlertTriangle,
-  Package, Loader2, Printer, Truck, Clock, Inbox,
+  BarChart3, TrendingUp, ShoppingBag, AlertTriangle,
+  Package, Loader2, Truck,
   FileSpreadsheet, Download, UserX, Boxes, CalendarClock,
 } from 'lucide-react'
-import { useCompanyInfo } from '@/hooks/useCompanyInfo'
-import { reportService, installmentService, exportService } from '@/services/api'
-import { printElementById } from '@/lib/printCard'
-
-const STATUS_LABELS = { PENDING: 'Pendiente', CONTACTED: 'Contactado', CONVERTED: 'Convertido', DISCARDED: 'Descartado' }
+import { installmentService, exportService } from '@/services/api'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
 }
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-function monthStartISO() {
-  const d = new Date()
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
-}
-
 export default function ReportesPage() {
-  const { info } = useCompanyInfo()
-  const [filters, setFilters] = useState({
-    date_from: monthStartISO(),
-    date_to: todayISO(),
-  })
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [tab, setTab] = useState('ventas')
-  const [dueInstallments, setDueInstallments] = useState([])
-  const [dueLoading, setDueLoading] = useState(true)
+  const [overdueCount, setOverdueCount] = useState(0)
 
   useEffect(() => {
-    setDueLoading(true)
-    installmentService
-      .getDueReport(7)
-      .then(setDueInstallments)
-      .catch(() => {})
-      .finally(() => setDueLoading(false))
+    installmentService.getOverdueCount().then(setOverdueCount).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    reportService
-      .get({ date_from: filters.date_from, date_to: filters.date_to })
-      .then(setData)
-      .catch(() => setError('No se pudieron cargar los reportes.'))
-      .finally(() => setLoading(false))
-  }, [filters])
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-3 print:hidden">
+      <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <BarChart3 size={24} className="text-blue-600" />
           <div>
@@ -68,40 +31,9 @@ export default function ReportesPage() {
             <p className="text-gray-500 text-sm mt-1">Análisis de ventas, cobranza y comportamiento de clientes</p>
           </div>
         </div>
-        {data && (
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
-          >
-            <Printer size={16} />
-            Imprimir
-          </button>
-        )}
       </div>
 
-      {data && (
-        <div className="hidden print:flex items-center justify-between border-b border-gray-300 pb-4 mb-2">
-          <div className="flex items-center gap-3">
-            {info?.logo && <img src={info.logo} alt={info.name} className="w-12 h-12 object-contain" />}
-            <div>
-              <p className="font-bold text-gray-900">{info?.legal_name || info?.name}</p>
-              <p className="text-xs text-gray-500">Reporte de Ventas y Cobranza</p>
-            </div>
-          </div>
-          <div className="text-right text-xs text-gray-500">
-            <p>Período: {filters.date_from} a {filters.date_to}</p>
-            <p>Generado: {todayISO()}</p>
-          </div>
-        </div>
-      )}
-
-      {tab === 'cobranza' && (
-        <div className="print:hidden">
-          <SimpleDateRangeBar filters={filters} setFilters={setFilters} />
-        </div>
-      )}
-
-      <div className="flex gap-1 border-b border-gray-200 print:hidden overflow-x-auto">
+      <div className="flex gap-1 border-b border-gray-200 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -114,104 +46,19 @@ export default function ReportesPage() {
           >
             <t.icon size={16} />
             {t.label}
-            {t.key === 'cobranza' && dueInstallments.length > 0 && (
+            {t.key === 'cobranza' && overdueCount > 0 && (
               <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
-                {dueInstallments.length}
+                {overdueCount}
               </span>
             )}
           </button>
         ))}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 size={28} className="animate-spin text-gray-400" />
-        </div>
-      ) : error ? (
-        <p className="text-red-600">{error}</p>
-      ) : (
-        <>
-        {tab === 'ventas' && <ReportesVentas />}
-
-        {tab === 'cobranza' && (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <RankingCard
-              id="card-mejores-clientes"
-              title="Mejores clientes (por monto comprado)"
-              icon={Users}
-              rows={data.top_customers}
-              renderRow={(row) => (
-                <>
-                  <Link href={`/panel/clientes/${row.customer_id}`} className="text-blue-600 hover:underline">
-                    {row.name}
-                  </Link>
-                  <span className="text-gray-500 text-xs">{row.purchases} compra(s)</span>
-                  <span className="font-semibold text-gray-900">{formatGs(row.total)}</span>
-                </>
-              )}
-            />
-
-            <PrintableCard id="card-cobranza-cuotas" className="p-6">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <AlertTriangle size={16} className="text-red-500" />
-                Cobranza de cuotas
-              </h2>
-              <div className="grid grid-cols-3 gap-3 mb-5">
-                <CollectionBox label="Pagado" value={data.collections.paid} className="bg-green-50 text-green-700" />
-                <CollectionBox label="Pendiente" value={data.collections.pending} className="bg-amber-50 text-amber-700" />
-                <CollectionBox label="Atrasado" value={data.collections.overdue} className="bg-red-50 text-red-700" />
-              </div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2">Clientes con mayor deuda</h3>
-              {data.top_debtors.length === 0 ? (
-                <EmptyState text="No hay deudas pendientes." />
-              ) : (
-                <ul className="space-y-2">
-                  {data.top_debtors.slice(0, 6).map((c) => (
-                    <li key={c.id} className="flex items-center justify-between text-sm">
-                      <Link href={`/panel/clientes/${c.id}`} className="text-blue-600 hover:underline truncate">
-                        {c.full_name}
-                      </Link>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {c.overdue_count > 0 && (
-                          <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700">
-                            {c.overdue_count} atrasada(s)
-                          </span>
-                        )}
-                        <span className="font-semibold text-gray-900">{formatGs(c.debt)}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </PrintableCard>
-          </div>
-
-          <DueInstallmentsReport installments={dueInstallments} loading={dueLoading} />
-        </>
-        )}
-
-        {tab === 'proveedores' && <ProveedoresReport />}
-
-        {tab === 'pedidos' && (
-          <PrintableCard id="card-pedidos-web" className="p-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4">Pedidos web (bandeja de entrada)</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <MiniStat label="Total pedidos" value={data.orders.total} />
-              <MiniStat label="Convertidos en venta" value={data.orders.converted} />
-              <MiniStat label="Tasa de conversión" value={`${data.orders.conversion_rate}%`} />
-              <MiniStat
-                label="Por estado"
-                value={data.orders.by_status.map((s) => `${STATUS_LABELS[s.status] || s.status}: ${s.count}`).join(' · ') || '-'}
-                small
-              />
-            </div>
-          </PrintableCard>
-        )}
-
-        {tab === 'operativos' && <ReportesOperativos />}
-        </>
-      )}
+      {tab === 'ventas' && <ReportesVentas />}
+      {tab === 'cobranza' && <PorCobrarReport />}
+      {tab === 'proveedores' && <ProveedoresReport />}
+      {tab === 'operativos' && <ReportesOperativos />}
     </div>
   )
 }
@@ -580,7 +427,6 @@ function ProveedoresReport() {
 const OPERATIVOS_REPORTS = [
   { key: 'mora', label: 'Clientes con mora', icon: UserX, color: 'red' },
   { key: 'stock', label: 'Stock y precios', icon: Boxes, color: 'blue' },
-  { key: 'por_cobrar', label: 'Cuotas por cobrar', icon: CalendarClock, color: 'amber' },
 ]
 
 function ReportesOperativos() {
@@ -608,7 +454,6 @@ function ReportesOperativos() {
 
       {reportKey === 'mora' && <MoraReport />}
       {reportKey === 'stock' && <StockReport />}
-      {reportKey === 'por_cobrar' && <PorCobrarReport />}
     </div>
   )
 }
@@ -922,174 +767,8 @@ const TABS = [
   { key: 'ventas', label: 'Ventas', icon: BarChart3 },
   { key: 'cobranza', label: 'Cobranza', icon: AlertTriangle },
   { key: 'proveedores', label: 'Proveedores', icon: Truck },
-  { key: 'pedidos', label: 'Pedidos', icon: Inbox },
   { key: 'operativos', label: 'Reportes Operativos', icon: FileSpreadsheet },
 ]
-
-function daysUntil(dateStr) {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const due = new Date(`${dateStr}T00:00:00`)
-  return Math.round((due - today) / (1000 * 60 * 60 * 24))
-}
-
-function DueInstallmentsReport({ installments, loading }) {
-  const overdue = installments.filter((i) => i.status === 'OVERDUE')
-  const upcoming = installments.filter((i) => i.status !== 'OVERDUE')
-
-  return (
-    <PrintableCard id="card-cuotas-por-vencer" className="p-6">
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <Clock size={16} className="text-amber-500" />
-          Cuotas atrasadas y próximas a vencer (7 días)
-        </h2>
-        <Link href="/panel/cuotas" className="text-xs font-semibold text-blue-600 hover:underline whitespace-nowrap">
-          Ver todas →
-        </Link>
-      </div>
-      <p className="text-xs text-gray-400 mb-4">
-        {overdue.length} atrasada(s) · {upcoming.length} por vencer · vista rápida, máximo 30
-      </p>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-10">
-          <Loader2 size={22} className="animate-spin text-gray-400" />
-        </div>
-      ) : installments.length === 0 ? (
-        <EmptyState text="No hay cuotas atrasadas ni próximas a vencer." />
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2 font-medium">Cliente</th>
-                <th className="pb-2 font-medium">Producto</th>
-                <th className="pb-2 font-medium text-center">Cuota</th>
-                <th className="pb-2 font-medium">Vencimiento</th>
-                <th className="pb-2 font-medium text-right">Monto</th>
-                <th className="pb-2 font-medium text-center">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {installments.map((inst) => {
-                const days = daysUntil(inst.due_date)
-                const isOverdue = inst.status === 'OVERDUE'
-                return (
-                  <tr key={inst.id} className="border-b last:border-0">
-                    <td className="py-2">
-                      <Link href={`/panel/clientes/${inst.customer_id}`} className="text-blue-600 hover:underline font-medium">
-                        {inst.customer_name}
-                      </Link>
-                    </td>
-                    <td className="py-2 text-gray-600">{inst.product_name}</td>
-                    <td className="py-2 text-center text-gray-600">{inst.number}/{inst.installment_count}</td>
-                    <td className="py-2 text-gray-600">{inst.due_date}</td>
-                    <td className="py-2 text-right font-semibold text-gray-900">{formatGs(inst.amount)}</td>
-                    <td className="py-2 text-center">
-                      {isOverdue ? (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-                          Atrasada ({Math.abs(days)}d)
-                        </span>
-                      ) : (
-                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                          {days === 0 ? 'Vence hoy' : `Vence en ${days}d`}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </PrintableCard>
-  )
-}
-
-function SimpleDateRangeBar({ filters, setFilters }) {
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-wrap items-end gap-4">
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Desde</label>
-        <input
-          type="date"
-          autoComplete="off"
-          value={filters.date_from}
-          onChange={(e) => setFilters((f) => ({ ...f, date_from: e.target.value }))}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
-      <span className="text-gray-300 pb-2.5">→</span>
-      <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1.5">Hasta</label>
-        <input
-          type="date"
-          autoComplete="off"
-          value={filters.date_to}
-          onChange={(e) => setFilters((f) => ({ ...f, date_to: e.target.value }))}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
-    </div>
-  )
-}
-
-function RankingCard({ id, title, icon: Icon, rows, renderRow }) {
-  return (
-    <PrintableCard id={id} className="p-6">
-      <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-        <Icon size={16} className="text-gray-400" />
-        {title}
-      </h2>
-      {rows.length === 0 ? (
-        <EmptyState text="Sin datos en este período." />
-      ) : (
-        <ul className="space-y-2.5">
-          {rows.map((row, i) => (
-            <li key={i} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center text-sm">
-              {renderRow(row)}
-            </li>
-          ))}
-        </ul>
-      )}
-    </PrintableCard>
-  )
-}
-
-function CollectionBox({ label, value, className }) {
-  return (
-    <div className={`rounded-lg p-3 text-center ${className}`}>
-      <p className="text-xs font-semibold uppercase opacity-75">{label}</p>
-      <p className="font-bold text-sm mt-1">{formatGs(value)}</p>
-    </div>
-  )
-}
-
-function MiniStat({ label, value, small }) {
-  return (
-    <div className="min-w-0">
-      <p className={`break-words ${small ? 'text-xs text-gray-600' : 'text-xl font-bold text-gray-900'}`}>{value}</p>
-      <p className="text-xs text-gray-500 mt-1">{label}</p>
-    </div>
-  )
-}
-
-function PrintableCard({ id, className = '', children }) {
-  return (
-    <div id={id} className={`relative group bg-white rounded-xl border border-gray-200 print:border-gray-300 print:break-inside-avoid ${className}`}>
-      <button
-        onClick={() => printElementById(id)}
-        title="Imprimir esta tarjeta"
-        className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-400 opacity-0 group-hover:opacity-100 hover:bg-gray-100 hover:text-gray-600 transition-opacity print:hidden"
-      >
-        <Printer size={15} />
-      </button>
-      {children}
-    </div>
-  )
-}
 
 function EmptyState({ text }) {
   return <p className="text-sm text-gray-400 italic py-8 text-center">{text}</p>

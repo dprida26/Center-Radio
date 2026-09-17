@@ -736,7 +736,6 @@ class InstallmentViewSet(viewsets.ModelViewSet):
 
         return qs.order_by('due_date')
 
-    @action(detail=False, methods=['get'], url_path='export_por_cobrar')
     def _por_cobrar_range(self, request):
         from dateutil.relativedelta import relativedelta
         today = timezone.now().date()
@@ -882,6 +881,14 @@ class InstallmentViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(installment)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='overdue_count')
+    def overdue_count(self, request):
+        today = timezone.now().date()
+        is_overdue_q = Q(status=Installment.STATUS_PENDING, due_date__lt=today)
+        overdue_or_marked_q = Q(status=Installment.STATUS_OVERDUE) | is_overdue_q
+        count = Installment.objects.filter(overdue_or_marked_q).count()
+        return Response({'count': count})
 
     @action(detail=False, methods=['get'])
     def due_report(self, request):

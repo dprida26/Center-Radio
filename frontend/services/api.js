@@ -394,6 +394,10 @@ export const installmentService = {
     const { data } = await api.get('/installments/due_report/', { params: { days_ahead: daysAhead } })
     return data
   },
+  getOverdueCount: async () => {
+    const { data } = await api.get('/installments/overdue_count/')
+    return data.count
+  },
   getDashboard: async () => {
     const { data } = await api.get('/installments/dashboard/')
     return data
