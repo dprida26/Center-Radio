@@ -310,7 +310,15 @@ class Sale(models.Model):
         if self.payment_type != self.PAYMENT_INSTALLMENTS:
             return Decimal('0')
         if 'installments' in getattr(self, '_prefetched_objects_cache', {}):
-            return sum((i.remaining_amount for i in self.installments.all()), Decimal('0'))
+            # Filtramos en memoria (ya esta prefetched, no dispara query nueva)
+            # excluyendo PAID explicitamente, igual que la rama sin prefetch.
+            # No podemos confiar en i.remaining_amount para decidir que esta
+            # pendiente: cuotas migradas del sistema legado tienen
+            # status=PAID + paid_amount cargado a mano, pero sin un
+            # InstallmentPayment real, asi que su remaining_amount calculado
+            # (amount - paid_so_far) da el monto completo en vez de 0.
+            pending = [i for i in self.installments.all() if i.status != Installment.STATUS_PAID]
+            return sum((i.remaining_amount for i in pending), Decimal('0'))
         pending = self.installments.exclude(status=Installment.STATUS_PAID)
         return sum((i.remaining_amount for i in pending), Decimal('0'))
 
@@ -635,7 +643,11 @@ class PurchaseInvoice(models.Model):
         if self.payment_type != self.PAYMENT_INSTALLMENTS:
             return Decimal('0')
         if 'purchase_installments' in getattr(self, '_prefetched_objects_cache', {}):
-            return sum((i.remaining_amount for i in self.purchase_installments.all()), Decimal('0'))
+            # Ver nota equivalente en Sale.remaining_amount: no confiar en
+            # i.remaining_amount para filtrar, cuotas migradas pueden tener
+            # status=PAID sin un PurchaseInstallmentPayment real detras.
+            pending = [i for i in self.purchase_installments.all() if i.status != PurchaseInstallment.STATUS_PAID]
+            return sum((i.remaining_amount for i in pending), Decimal('0'))
         pending = self.purchase_installments.exclude(status=PurchaseInstallment.STATUS_PAID)
         return sum((i.remaining_amount for i in pending), Decimal('0'))
 
