@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import {
   BarChart3, TrendingUp, ShoppingBag, AlertTriangle,
   Package, Loader2, Truck, Users,
-  FileSpreadsheet, Download, UserX, Boxes, CalendarClock,
+  FileSpreadsheet, Download, UserX, Boxes, CalendarClock, Search,
 } from 'lucide-react'
 import { installmentService, exportService } from '@/services/api'
 
@@ -87,32 +87,50 @@ const VENTAS_REPORTS = [
 ]
 
 function useDateRange() {
-  const [dateFrom, setDateFrom] = useState(() => {
+  const initialFrom = () => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
-  })
-  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10))
-  return [dateFrom, setDateFrom, dateTo, setDateTo]
+  }
+  const initialTo = () => new Date().toISOString().slice(0, 10)
+
+  const [draftFrom, setDraftFrom] = useState(initialFrom)
+  const [draftTo, setDraftTo] = useState(initialTo)
+  const [dateFrom, setDateFrom] = useState(initialFrom)
+  const [dateTo, setDateTo] = useState(initialTo)
+
+  const search = () => {
+    setDateFrom(draftFrom)
+    setDateTo(draftTo)
+  }
+
+  return { draftFrom, setDraftFrom, draftTo, setDraftTo, dateFrom, dateTo, search }
 }
 
-function DateRangeFilter({ dateFrom, setDateFrom, dateTo, setDateTo }) {
+function DateRangeFilter({ draftFrom, setDraftFrom, draftTo, setDraftTo, onSearch }) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <input
         type="date"
         autoComplete="off"
-        value={dateFrom}
-        onChange={(e) => setDateFrom(e.target.value)}
-        className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+        value={draftFrom}
+        onChange={(e) => setDraftFrom(e.target.value)}
+        className="px-2 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <span className="text-gray-400 text-xs">a</span>
       <input
         type="date"
         autoComplete="off"
-        value={dateTo}
-        onChange={(e) => setDateTo(e.target.value)}
-        className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+        value={draftTo}
+        onChange={(e) => setDraftTo(e.target.value)}
+        className="px-2 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+      <button
+        onClick={onSearch}
+        className="flex items-center gap-1.5 px-3 py-2 border border-blue-600 text-blue-600 rounded-lg text-xs font-semibold hover:bg-blue-50 transition-colors whitespace-nowrap"
+      >
+        <Search size={13} />
+        Buscar
+      </button>
     </div>
   )
 }
@@ -147,7 +165,7 @@ function ReportesVentas() {
 }
 
 function ListadoVentasReport() {
-  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const { draftFrom, setDraftFrom, draftTo, setDraftTo, dateFrom, dateTo, search } = useDateRange()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -179,7 +197,7 @@ function ListadoVentasReport() {
       count={rows.length}
       downloading={downloading}
       onExport={handleExport}
-      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -229,7 +247,7 @@ function ListadoVentasReport() {
 }
 
 function TopProductosReport() {
-  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const { draftFrom, setDraftFrom, draftTo, setDraftTo, dateFrom, dateTo, search } = useDateRange()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -261,7 +279,7 @@ function TopProductosReport() {
       count={rows.length}
       downloading={downloading}
       onExport={handleExport}
-      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -296,7 +314,7 @@ function TopProductosReport() {
 }
 
 function ResumenVentasReport() {
-  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const { draftFrom, setDraftFrom, draftTo, setDraftTo, dateFrom, dateTo, search } = useDateRange()
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -336,7 +354,7 @@ function ResumenVentasReport() {
       description="Totales del período: ingresos, cantidad de ventas, unidades y ticket promedio."
       downloading={downloading}
       onExport={handleExport}
-      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -357,7 +375,7 @@ function ResumenVentasReport() {
 }
 
 function ProveedoresReport() {
-  const [dateFrom, setDateFrom, dateTo, setDateTo] = useDateRange()
+  const { draftFrom, setDraftFrom, draftTo, setDraftTo, dateFrom, dateTo, search } = useDateRange()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -389,7 +407,7 @@ function ProveedoresReport() {
       count={rows.length}
       downloading={downloading}
       onExport={handleExport}
-      filters={<DateRangeFilter dateFrom={dateFrom} setDateFrom={setDateFrom} dateTo={dateTo} setDateTo={setDateTo} />}
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -485,9 +503,20 @@ function ReportPanel({ icon: Icon, color, title, description, filters, count, do
     green: 'bg-green-50 text-green-600',
   }
 
+  const exportButton = (
+    <button
+      onClick={onExport}
+      disabled={downloading}
+      className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors whitespace-nowrap"
+    >
+      {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+      {downloading ? 'Generando...' : 'Exportar a Excel'}
+    </button>
+  )
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className={`p-6 ${filters ? '' : 'border-b border-gray-100'} flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4`}>
         <div className="flex items-start gap-3">
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${colorClasses[color] || colorClasses.blue}`}>
             <Icon size={20} />
@@ -500,18 +529,13 @@ function ReportPanel({ icon: Icon, color, title, description, filters, count, do
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {filters}
-          <button
-            onClick={onExport}
-            disabled={downloading}
-            className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors whitespace-nowrap"
-          >
-            {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-            {downloading ? 'Generando...' : 'Exportar a Excel'}
-          </button>
-        </div>
+        {exportButton}
       </div>
+      {filters && (
+        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-4 flex-wrap">
+          {filters}
+        </div>
+      )}
       {children}
     </div>
   )
@@ -595,8 +619,14 @@ function ClientesReport() {
 }
 
 function MoraReport() {
+  const [draftFrom, setDraftFrom] = useState('')
+  const [draftTo, setDraftTo] = useState('')
   const [dueFrom, setDueFrom] = useState('')
   const [dueTo, setDueTo] = useState('')
+  const search = () => {
+    setDueFrom(draftFrom)
+    setDueTo(draftTo)
+  }
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -628,7 +658,7 @@ function MoraReport() {
       count={rows.length}
       downloading={downloading}
       onExport={handleExport}
-      filters={<DateRangeFilter dateFrom={dueFrom} setDateFrom={setDueFrom} dateTo={dueTo} setDateTo={setDueTo} />}
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-12">
@@ -755,14 +785,22 @@ function StockReport() {
 }
 
 function PorCobrarReport() {
-  const [dueFrom, setDueFrom] = useState(() => {
+  const monthStart = () => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
-  })
-  const [dueTo, setDueTo] = useState(() => {
+  }
+  const monthEnd = () => {
     const d = new Date()
     return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10)
-  })
+  }
+  const [draftFrom, setDraftFrom] = useState(monthStart)
+  const [draftTo, setDraftTo] = useState(monthEnd)
+  const [dueFrom, setDueFrom] = useState(monthStart)
+  const [dueTo, setDueTo] = useState(monthEnd)
+  const search = () => {
+    setDueFrom(draftFrom)
+    setDueTo(draftTo)
+  }
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
@@ -794,23 +832,7 @@ function PorCobrarReport() {
       count={rows.length}
       downloading={downloading}
       onExport={handleExport}
-      filters={
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={dueFrom}
-            onChange={(e) => setDueFrom(e.target.value)}
-            className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <span className="text-gray-400 text-xs">a</span>
-          <input
-            type="date"
-            value={dueTo}
-            onChange={(e) => setDueTo(e.target.value)}
-            className="px-2 py-2 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-      }
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
     >
       {loading ? (
         <div className="flex items-center justify-center py-12">
