@@ -147,7 +147,7 @@ function ReportesVentas() {
             onClick={() => setReportKey(r.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
               reportKey === r.key
-                ? 'bg-gray-900 text-white border-gray-900'
+                ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -478,7 +478,7 @@ function ReportesOperativos() {
             onClick={() => setReportKey(r.key)}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
               reportKey === r.key
-                ? 'bg-gray-900 text-white border-gray-900'
+                ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -507,7 +507,7 @@ function ReportPanel({ icon: Icon, color, title, description, filters, count, do
     <button
       onClick={onExport}
       disabled={downloading}
-      className="flex items-center justify-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition-colors whitespace-nowrap"
+      className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
     >
       {downloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
       {downloading ? 'Generando...' : 'Exportar a Excel'}
