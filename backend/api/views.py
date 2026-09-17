@@ -857,6 +857,7 @@ class InstallmentViewSet(viewsets.ModelViewSet):
             product_name = ', '.join(i.product.name for i in items[:2]) + (f' +{len(items)-2}' if len(items) > 2 else '')
             real_status = 'OVERDUE' if (inst.status == Installment.STATUS_PENDING and inst.due_date < today) else inst.status
             data.append({
+                'customer_id': inst.sale.customer_id,
                 'customer_name': inst.sale.customer.full_name,
                 'document_number': inst.sale.customer.document_number,
                 'phone': inst.sale.customer.phone or '',

@@ -459,14 +459,16 @@ function ProveedoresReport() {
   )
 }
 
+// 'mora' se deja fuera de la lista visible (reporte unificado/reemplazado
+// por Cuotas por cobrar en la tab Cobranza), pero el componente MoraReport
+// y sus endpoints se mantienen por si se necesita reactivar.
 const OPERATIVOS_REPORTS = [
   { key: 'clientes', label: 'Listado de clientes', icon: Users, color: 'blue' },
-  { key: 'mora', label: 'Clientes con mora', icon: UserX, color: 'red' },
   { key: 'stock', label: 'Stock y precios', icon: Boxes, color: 'blue' },
 ]
 
 function ReportesOperativos() {
-  const [reportKey, setReportKey] = useState('mora')
+  const [reportKey, setReportKey] = useState('clientes')
   const active = OPERATIVOS_REPORTS.find((r) => r.key === reportKey)
 
   return (
@@ -857,7 +859,9 @@ function PorCobrarReport() {
               {rows.map((r, idx) => (
                 <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
                   <td className="px-5 py-3 whitespace-nowrap">
-                    <p className="font-medium text-gray-900">{r.customer_name}</p>
+                    <Link href={`/panel/clientes/${r.customer_id}`} className="font-medium text-blue-600 hover:underline">
+                      {r.customer_name}
+                    </Link>
                     <p className="text-xs text-gray-400">{r.document_number}</p>
                   </td>
                   <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.product_name}</td>
