@@ -344,14 +344,25 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         'payments', 'sale__items', 'sale__items__product'
     )
     serializer_class = InstallmentSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['sale__customer__full_name', 'sale__customer__document_number']
 
     def get_queryset(self):
         qs = super().get_queryset()
         today = timezone.now().date()
-        qs.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(status=Installment.STATUS_OVERDUE)
+        # No hacemos UPDATE masivo sobre toda la tabla en cada request (eso
+        # era un Seq Scan + escritura en cada GET, insostenible con miles de
+        # cuotas y varios usuarios concurrentes). El estado "vencida" se
+        # calcula al vuelo combinando el status persistido con is_overdue;
+        # el status en la base se sincroniza aparte, ver sync_overdue_installments.
+        is_overdue_q = Q(status=Installment.STATUS_PENDING, due_date__lt=today)
 
         status_param = self.request.query_params.get('status')
-        if status_param:
+        if status_param == Installment.STATUS_OVERDUE:
+            qs = qs.filter(Q(status=Installment.STATUS_OVERDUE) | is_overdue_q)
+        elif status_param == Installment.STATUS_PENDING:
+            qs = qs.filter(status=Installment.STATUS_PENDING).exclude(is_overdue_q)
+        elif status_param:
             qs = qs.filter(status=status_param)
 
         customer_id = self.request.query_params.get('customer_id')
@@ -447,54 +458,70 @@ class InstallmentViewSet(viewsets.ModelViewSet):
     def due_report(self, request):
         from datetime import timedelta
         today = timezone.now().date()
-        Installment.objects.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(
-            status=Installment.STATUS_OVERDUE
-        )
+        # Sin UPDATE masivo aca: status=OVERDUE se trata como "PENDING ya
+        # vencida" (is_overdue_q), evitando reescribir toda la tabla en
+        # cada GET. Ver nota en InstallmentViewSet.get_queryset.
         days_ahead = int(request.query_params.get('days_ahead', 7))
         qs = Installment.objects.filter(
             status__in=[Installment.STATUS_OVERDUE, Installment.STATUS_PENDING],
             due_date__lte=today + timedelta(days=days_ahead),
-        ).select_related('sale', 'sale__customer').prefetch_related('sale__items', 'sale__items__product').order_by('due_date')
+        ).select_related('sale', 'sale__customer').prefetch_related(
+            'payments', 'sale__items', 'sale__items__product'
+        ).order_by('due_date')[:30]
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
+        from datetime import timedelta
         today = timezone.now().date()
-
-        Installment.objects.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(
-            status=Installment.STATUS_OVERDUE
-        )
+        is_overdue_q = Q(status=Installment.STATUS_PENDING, due_date__lt=today)
+        overdue_or_marked_q = Q(status=Installment.STATUS_OVERDUE) | is_overdue_q
+        pending_not_overdue_q = Q(status=Installment.STATUS_PENDING, due_date__gte=today)
 
         totals = Installment.objects.aggregate(
-            total_pending=Sum('amount', filter=Q(status=Installment.STATUS_PENDING)),
-            total_overdue=Sum('amount', filter=Q(status=Installment.STATUS_OVERDUE)),
+            total_pending=Sum('amount', filter=pending_not_overdue_q),
+            total_overdue=Sum('amount', filter=overdue_or_marked_q),
             total_paid=Sum('amount', filter=Q(status=Installment.STATUS_PAID)),
         )
 
         sales_by_month = list(
-            Sale.objects.annotate(month=TruncMonth('sale_date'))
+            SaleItem.objects.annotate(month=TruncMonth('sale__sale_date'))
             .values('month')
-            .annotate(total=Sum('unit_price'), count=Count('id'))
+            .annotate(total=Sum(F('unit_price') * F('quantity')))
             .order_by('-month')[:12]
         )
+        sales_count_by_month = dict(
+            Sale.objects.annotate(month=TruncMonth('sale_date'))
+            .values('month').annotate(count=Count('id')).values_list('month', 'count')
+        )
+        for row in sales_by_month:
+            row['count'] = sales_count_by_month.get(row['month'], 0)
 
         top_debtors = Customer.objects.annotate(
             debt=Sum('sales__installments__amount', filter=Q(sales__installments__status__in=[
                 Installment.STATUS_PENDING, Installment.STATUS_OVERDUE
             ])),
-            overdue_count=Count('sales__installments', filter=Q(sales__installments__status=Installment.STATUS_OVERDUE)),
+            overdue_count=Count('sales__installments', filter=(
+                Q(sales__installments__status=Installment.STATUS_OVERDUE) |
+                Q(sales__installments__status=Installment.STATUS_PENDING, sales__installments__due_date__lt=today)
+            )),
         ).filter(debt__gt=0).order_by('-debt')[:10]
 
+        DASHBOARD_LIST_LIMIT = 50
+
         upcoming = Installment.objects.filter(
-            status=Installment.STATUS_PENDING,
-            due_date__gte=today,
+            pending_not_overdue_q,
             due_date__lte=today + timedelta(days=7),
-        ).select_related('sale', 'sale__customer').order_by('due_date')
+        ).select_related('sale', 'sale__customer').prefetch_related(
+            'payments', 'sale__items', 'sale__items__product'
+        ).order_by('due_date')[:DASHBOARD_LIST_LIMIT]
 
         overdue = Installment.objects.filter(
-            status=Installment.STATUS_OVERDUE
-        ).select_related('sale', 'sale__customer').order_by('due_date')
+            overdue_or_marked_q
+        ).select_related('sale', 'sale__customer').prefetch_related(
+            'payments', 'sale__items', 'sale__items__product'
+        ).order_by('due_date')[:DASHBOARD_LIST_LIMIT]
 
         return Response({
             'totals': {k: str(v or 0) for k, v in totals.items()},
@@ -520,10 +547,15 @@ class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         today = timezone.now().date()
-        qs.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(status=PurchaseInstallment.STATUS_OVERDUE)
+        # Igual que en InstallmentViewSet: sin UPDATE masivo en cada GET.
+        is_overdue_q = Q(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today)
 
         status_param = self.request.query_params.get('status')
-        if status_param:
+        if status_param == PurchaseInstallment.STATUS_OVERDUE:
+            qs = qs.filter(Q(status=PurchaseInstallment.STATUS_OVERDUE) | is_overdue_q)
+        elif status_param == PurchaseInstallment.STATUS_PENDING:
+            qs = qs.filter(status=PurchaseInstallment.STATUS_PENDING).exclude(is_overdue_q)
+        elif status_param:
             qs = qs.filter(status=status_param)
 
         supplier_id = self.request.query_params.get('supplier_id')
@@ -585,14 +617,13 @@ class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         today = timezone.now().date()
-
-        PurchaseInstallment.objects.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(
-            status=PurchaseInstallment.STATUS_OVERDUE
-        )
+        is_overdue_q = Q(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today)
+        overdue_or_marked_q = Q(status=PurchaseInstallment.STATUS_OVERDUE) | is_overdue_q
+        pending_not_overdue_q = Q(status=PurchaseInstallment.STATUS_PENDING, due_date__gte=today)
 
         totals = PurchaseInstallment.objects.aggregate(
-            total_pending=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_PENDING)),
-            total_overdue=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_OVERDUE)),
+            total_pending=Sum('amount', filter=pending_not_overdue_q),
+            total_overdue=Sum('amount', filter=overdue_or_marked_q),
             total_paid=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_PAID)),
         )
 
@@ -600,17 +631,19 @@ class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
             debt=Sum('purchase_invoices__purchase_installments__amount', filter=Q(purchase_invoices__purchase_installments__status__in=[
                 PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE
             ])),
-            overdue_count=Count('purchase_invoices__purchase_installments', filter=Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE)),
+            overdue_count=Count('purchase_invoices__purchase_installments', filter=(
+                Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE) |
+                Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_PENDING, purchase_invoices__purchase_installments__due_date__lt=today)
+            )),
         ).filter(debt__gt=0).order_by('-debt')[:10]
 
         upcoming = PurchaseInstallment.objects.filter(
-            status=PurchaseInstallment.STATUS_PENDING,
-            due_date__gte=today,
+            pending_not_overdue_q,
             due_date__lte=today + timedelta(days=7),
         ).select_related('purchase_invoice', 'purchase_invoice__supplier').order_by('due_date')
 
         overdue = PurchaseInstallment.objects.filter(
-            status=PurchaseInstallment.STATUS_OVERDUE
+            overdue_or_marked_q
         ).select_related('purchase_invoice', 'purchase_invoice__supplier').order_by('due_date')
 
         return Response({
@@ -738,13 +771,9 @@ def home_dashboard(request):
     today = timezone.now().date()
     soon = today + timedelta(days=2)
 
-    Installment.objects.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(
-        status=Installment.STATUS_OVERDUE
-    )
-    PurchaseInstallment.objects.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(
-        status=PurchaseInstallment.STATUS_OVERDUE
-    )
-
+    # Sin UPDATE masivo: este endpoint se llama en cada carga del panel, asi
+    # que reescribir toda la tabla de cuotas aca (con miles de filas y
+    # varios usuarios concurrentes) es lo que colgaba el sitio en produccion.
     DASHBOARD_LIMIT = 20
 
     customer_installments_qs = Installment.objects.filter(
@@ -800,10 +829,6 @@ def reports(request):
     else:
         date_from = date_from or (today - timedelta(days=365))
         date_to = date_to or today
-
-    Installment.objects.filter(status=Installment.STATUS_PENDING, due_date__lt=today).update(
-        status=Installment.STATUS_OVERDUE
-    )
 
     sales_qs = Sale.objects.filter(sale_date__gte=date_from, sale_date__lte=date_to)
     if category_id:
@@ -869,11 +894,14 @@ def reports(request):
         row['customer__full_name'] = row.pop('sale__customer__full_name')
         row['purchases'] = purchases_by_customer.get(row['customer_id'], 0)
 
+    customer_overdue_or_marked_q = Q(status=Installment.STATUS_OVERDUE) | Q(status=Installment.STATUS_PENDING, due_date__lt=today)
+    customer_pending_not_overdue_q = Q(status=Installment.STATUS_PENDING, due_date__gte=today)
+
     installment_totals = Installment.objects.filter(
         sale__in=sales_qs
     ).aggregate(
-        pending=Sum('amount', filter=Q(status=Installment.STATUS_PENDING)),
-        overdue=Sum('amount', filter=Q(status=Installment.STATUS_OVERDUE)),
+        pending=Sum('amount', filter=customer_pending_not_overdue_q),
+        overdue=Sum('amount', filter=customer_overdue_or_marked_q),
         paid=Sum('paid_amount', filter=Q(status=Installment.STATUS_PAID)),
     )
 
@@ -882,21 +910,23 @@ def reports(request):
             debt=Sum('sales__installments__amount', filter=Q(sales__installments__status__in=[
                 Installment.STATUS_PENDING, Installment.STATUS_OVERDUE
             ])),
-            overdue_count=Count('sales__installments', filter=Q(sales__installments__status=Installment.STATUS_OVERDUE)),
+            overdue_count=Count('sales__installments', filter=(
+                Q(sales__installments__status=Installment.STATUS_OVERDUE) |
+                Q(sales__installments__status=Installment.STATUS_PENDING, sales__installments__due_date__lt=today)
+            )),
         ).filter(debt__gt=0).order_by('-debt')[:10]
-    )
-
-    PurchaseInstallment.objects.filter(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today).update(
-        status=PurchaseInstallment.STATUS_OVERDUE
     )
 
     purchase_invoices_qs = PurchaseInvoice.objects.filter(purchase_date__gte=date_from, purchase_date__lte=date_to)
 
+    supplier_overdue_or_marked_q = Q(status=PurchaseInstallment.STATUS_OVERDUE) | Q(status=PurchaseInstallment.STATUS_PENDING, due_date__lt=today)
+    supplier_pending_not_overdue_q = Q(status=PurchaseInstallment.STATUS_PENDING, due_date__gte=today)
+
     purchase_installment_totals = PurchaseInstallment.objects.filter(
         purchase_invoice__in=purchase_invoices_qs
     ).aggregate(
-        pending=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_PENDING)),
-        overdue=Sum('amount', filter=Q(status=PurchaseInstallment.STATUS_OVERDUE)),
+        pending=Sum('amount', filter=supplier_pending_not_overdue_q),
+        overdue=Sum('amount', filter=supplier_overdue_or_marked_q),
         paid=Sum('paid_amount', filter=Q(status=PurchaseInstallment.STATUS_PAID)),
     )
 
@@ -905,7 +935,10 @@ def reports(request):
             debt=Sum('purchase_invoices__purchase_installments__amount', filter=Q(purchase_invoices__purchase_installments__status__in=[
                 PurchaseInstallment.STATUS_PENDING, PurchaseInstallment.STATUS_OVERDUE
             ])),
-            overdue_count=Count('purchase_invoices__purchase_installments', filter=Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE)),
+            overdue_count=Count('purchase_invoices__purchase_installments', filter=(
+                Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_OVERDUE) |
+                Q(purchase_invoices__purchase_installments__status=PurchaseInstallment.STATUS_PENDING, purchase_invoices__purchase_installments__due_date__lt=today)
+            )),
         ).filter(debt__gt=0).order_by('-debt')[:10]
     )
 

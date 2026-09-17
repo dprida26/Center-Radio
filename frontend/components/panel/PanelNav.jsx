@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, ShoppingCart, Store, Percent, Package, Tags, Building2, Inbox, LogOut, BarChart3, Receipt, ShieldCheck, Truck, PackagePlus, X } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Store, Percent, Package, Tags, Building2, Inbox, LogOut, BarChart3, Receipt, ShieldCheck, Truck, PackagePlus, Clock, X } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 
@@ -12,6 +12,7 @@ const links = [
   { href: '/panel/pedidos', label: 'Pedidos', icon: Inbox },
   { href: '/panel/gastos', label: 'Gastos', icon: Receipt },
   { href: '/panel/clientes', label: 'Clientes', icon: Users },
+  { href: '/panel/cuotas', label: 'Cuotas', icon: Clock },
   { href: '/panel/ventas/nueva', label: 'Nueva Venta', icon: ShoppingCart },
   { href: '/panel/proveedores', label: 'Proveedores', icon: Truck },
   { href: '/panel/compras/nueva', label: 'Nueva Compra', icon: PackagePlus },

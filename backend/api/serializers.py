@@ -2,7 +2,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment
+from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment, PurchaseInstallmentPayment
 
 class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
@@ -168,6 +168,22 @@ class SupplierSerializer(serializers.ModelSerializer):
         return total or 0
 
 
+class InstallmentPaymentSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = InstallmentPayment
+        fields = ['id', 'amount', 'payment_date', 'created_by_name', 'note', 'created_at']
+
+
+class PurchaseInstallmentPaymentSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = PurchaseInstallmentPayment
+        fields = ['id', 'amount', 'payment_date', 'created_by_name', 'note', 'created_at']
+
+
 class InstallmentSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='sale.customer.full_name', read_only=True)
     customer_id = serializers.IntegerField(source='sale.customer.id', read_only=True)
@@ -183,6 +199,7 @@ class InstallmentSerializer(serializers.ModelSerializer):
     paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     late_fee_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_with_late_fee = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    payments = InstallmentPaymentSerializer(many=True, read_only=True)
 
     class Meta:
         model = Installment
@@ -190,7 +207,7 @@ class InstallmentSerializer(serializers.ModelSerializer):
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'customer_name', 'customer_id', 'customer_document', 'customer_phone', 'product_name',
             'installment_count', 'sale_date', 'remaining_amount', 'paid_so_far',
-            'late_fee_amount', 'total_with_late_fee', 'late_fee_enabled', 'late_fee_override',
+            'late_fee_amount', 'total_with_late_fee', 'late_fee_enabled', 'late_fee_override', 'payments',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date', 'late_fee_enabled', 'late_fee_override']
 
@@ -222,13 +239,14 @@ class PurchaseInstallmentSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     remaining_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    payments = PurchaseInstallmentPaymentSerializer(many=True, read_only=True)
 
     class Meta:
         model = PurchaseInstallment
         fields = [
             'id', 'purchase_invoice', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'supplier_name', 'supplier_id', 'supplier_phone', 'invoice_number', 'installment_count', 'purchase_date',
-            'remaining_amount', 'paid_so_far',
+            'remaining_amount', 'paid_so_far', 'payments',
         ]
         read_only_fields = ['id', 'purchase_invoice', 'number', 'amount', 'due_date']
 

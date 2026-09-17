@@ -372,6 +372,10 @@ export const installmentService = {
     const { data } = await api.get('/installments/', { params })
     return data.results || data
   },
+  getPage: async (params = {}) => {
+    const { data } = await api.get('/installments/', { params })
+    return data.results ? data : { results: data, count: data.length, next: null, previous: null }
+  },
   getById: async (id) => {
     const { data } = await api.get(`/installments/${id}/`)
     return data

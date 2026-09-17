@@ -412,12 +412,17 @@ function DueInstallmentsReport({ installments, loading }) {
 
   return (
     <PrintableCard id="card-cuotas-por-vencer" className="p-6">
-      <h2 className="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
-        <Clock size={16} className="text-amber-500" />
-        Cuotas atrasadas y próximas a vencer (7 días)
-      </h2>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+          <Clock size={16} className="text-amber-500" />
+          Cuotas atrasadas y próximas a vencer (7 días)
+        </h2>
+        <Link href="/panel/cuotas" className="text-xs font-semibold text-blue-600 hover:underline whitespace-nowrap">
+          Ver todas →
+        </Link>
+      </div>
       <p className="text-xs text-gray-400 mb-4">
-        {overdue.length} atrasada(s) · {upcoming.length} por vencer
+        {overdue.length} atrasada(s) · {upcoming.length} por vencer · vista rápida, máximo 30
       </p>
 
       {loading ? (
