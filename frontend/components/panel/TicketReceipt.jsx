@@ -35,6 +35,7 @@ export default function TicketReceipt({
   amount,
   amountLabel = 'TOTAL PAGADO',
   balanceAfter,
+  balanceLabel = 'Saldo restante',
   paymentsHistory,
   signatureLabel,
 }) {
@@ -61,8 +62,10 @@ export default function TicketReceipt({
 
       <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
 
-      <p>Cuota: {installmentNumber} de {installmentCount}</p>
-      <p>Vencimiento: {formatDate(dueDate)}</p>
+      {installmentCount !== undefined && (
+        <p>Cuota: {installmentNumber} de {installmentCount}</p>
+      )}
+      {dueDate !== undefined && <p>Vencimiento: {formatDate(dueDate)}</p>}
       <p>Fecha de pago: {formatDate(paidDate)}</p>
 
       <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
@@ -88,7 +91,7 @@ export default function TicketReceipt({
       </p>
       {balanceAfter !== undefined && (
         <p style={{ textAlign: 'center', fontSize: '10px' }}>
-          Saldo restante: {formatGs(balanceAfter)}
+          {balanceLabel}: {formatGs(balanceAfter)}
         </p>
       )}
 

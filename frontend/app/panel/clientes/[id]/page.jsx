@@ -787,7 +787,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
     : `${items.length} productos`
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-1">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
@@ -798,11 +798,6 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
             <p className="text-xs text-gray-500">
               {sale.sale_date} · {isCash ? 'Contado' : `${sale.installment_count} cuotas`}
             </p>
-            {!isCash && parseFloat(sale.down_payment) > 0 && (
-              <p className="text-xs text-emerald-600 font-medium mt-0.5">
-                Entrega inicial: {formatGs(sale.down_payment)}
-              </p>
-            )}
             {items.length > 1 && (
               <ul className="text-xs text-gray-500 mt-1 space-y-0.5">
                 {items.map((it) => (
@@ -835,6 +830,19 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
           </Link>
         )}
       </div>
+
+      {!isCash && parseFloat(sale.down_payment) > 0 && (
+        <p className="text-xs text-emerald-600 font-medium mb-2 flex items-center gap-1.5">
+          Entrega inicial: {formatGs(sale.down_payment)}
+          <Link
+            href={`/panel/ventas/${sale.id}/comprobante?entrega=1`}
+            className="text-emerald-600 hover:text-emerald-800"
+            title="Ver e imprimir recibo de la entrega inicial"
+          >
+            <Printer size={12} />
+          </Link>
+        </p>
+      )}
 
       {expanded && !isCash && sale.installments?.length > 0 && (
         <table className="w-full text-sm mt-3">
