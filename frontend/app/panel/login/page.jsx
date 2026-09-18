@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Lock, Loader2, Store } from 'lucide-react'
+import { Lock, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 
@@ -92,11 +92,6 @@ export default function PanelLoginPage() {
             {submitting ? 'Ingresando...' : 'Ingresar'}
           </button>
         </form>
-
-        <a href="/" className="mt-6 flex items-center justify-center gap-1.5 text-sm text-gray-400 hover:text-gray-200 transition">
-          <Store size={14} />
-          Volver a la tienda
-        </a>
       </div>
     </div>
   )
