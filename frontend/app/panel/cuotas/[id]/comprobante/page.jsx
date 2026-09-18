@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Printer, Share2, Loader2 } from 'lucide-react'
 import { installmentService } from '@/services/api'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 import { shareReceiptAsImage } from '@/lib/shareReceipt'
 import { FaWhatsapp } from 'react-icons/fa'
+import TicketReceipt from '@/components/panel/TicketReceipt'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -31,7 +32,17 @@ function formatDate(value) {
 }
 
 export default function ComprobanteCuotaPage() {
+  return (
+    <Suspense fallback={<p className="text-gray-500 p-6">Cargando...</p>}>
+      <ComprobanteCuotaInner />
+    </Suspense>
+  )
+}
+
+function ComprobanteCuotaInner() {
   const { id } = useParams()
+  const searchParams = useSearchParams()
+  const paymentId = searchParams.get('pago')
   const { info } = useCompanyInfo()
   const [installment, setInstallment] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -65,6 +76,47 @@ export default function ComprobanteCuotaPage() {
 
   if (loading) return <p className="text-gray-500 p-6">Cargando...</p>
   if (error || !installment) return <p className="text-red-600 p-6">{error || 'Cuota no encontrada.'}</p>
+
+  // Recibo de un abono puntual (?pago=ID): la cuota puede seguir PENDING/
+  // OVERDUE con saldo restante, a diferencia del comprobante de cuota
+  // totalmente pagada más abajo.
+  if (paymentId) {
+    const payment = installment.payments?.find((p) => String(p.id) === String(paymentId))
+    if (!payment) {
+      return (
+        <div className="p-6 max-w-md">
+          <p className="text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm">
+            No se encontró ese abono.
+          </p>
+          <Link
+            href={installment.customer_id ? `/panel/clientes/${installment.customer_id}` : '/panel/clientes'}
+            className="mt-4 flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 w-fit"
+          >
+            <ArrowLeft size={16} />
+            Volver
+          </Link>
+        </div>
+      )
+    }
+    // Saldo acumulado hasta este abono: suma de todos los pagos de la
+    // misma cuota creados hasta (e incluyendo) este, en orden de id.
+    const paidUpToThis = installment.payments
+      .filter((p) => p.id <= payment.id)
+      .reduce((sum, p) => sum + parseFloat(p.amount), 0)
+    const balanceAfter = Math.max(parseFloat(installment.amount) - paidUpToThis, 0)
+
+    return (
+      <ComprobanteAbono
+        info={info}
+        installment={installment}
+        payment={payment}
+        balanceAfter={balanceAfter}
+        receiptRef={receiptRef}
+        handleShare={handleShare}
+        sharing={sharing}
+      />
+    )
+  }
 
   if (installment.status !== 'PAID') {
     return (
@@ -112,7 +164,7 @@ export default function ComprobanteCuotaPage() {
         </div>
       </div>
 
-      <div ref={receiptRef} className="bg-white border border-gray-200 rounded-xl p-8 print:border-0 print:rounded-none print:p-0">
+      <div ref={receiptRef} className="bg-white border border-gray-200 rounded-xl p-8 print:hidden">
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-6 mb-6">
           <div className="flex items-center gap-3">
             {info?.logo && (
@@ -168,6 +220,28 @@ export default function ComprobanteCuotaPage() {
           </table>
         </div>
 
+        {installment.payments?.length > 1 && (
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Historial de Abonos</p>
+            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+              <thead className="bg-gray-50">
+                <tr className="text-left text-gray-500">
+                  <th className="px-4 py-2 font-medium">Fecha</th>
+                  <th className="px-4 py-2 font-medium text-right">Monto Abonado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {installment.payments.map((p) => (
+                  <tr key={p.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2">{formatDate(p.payment_date)}</td>
+                    <td className="px-4 py-2 text-right">{formatGs(p.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="flex justify-end mb-10">
           <div className="text-right">
             <p className="text-xs font-semibold text-gray-400 uppercase">Total Pagado</p>
@@ -190,6 +264,138 @@ export default function ComprobanteCuotaPage() {
           Este comprobante certifica el pago de la cuota indicada y no reemplaza la factura legal correspondiente.
         </p>
       </div>
+
+      <TicketReceipt
+        info={info}
+        title="Comprobante de Pago"
+        receiptId={installment.id}
+        partyLabel="Cliente"
+        partyName={installment.customer_name}
+        partyExtra={`CI/RUC: ${installment.customer_document}`}
+        detailLabel="Producto"
+        detailValue={installment.product_name}
+        installmentNumber={installment.number}
+        installmentCount={installment.installment_count}
+        dueDate={installment.due_date}
+        paidDate={installment.paid_date}
+        amount={installment.paid_amount ?? installment.amount}
+        paymentsHistory={installment.payments}
+        signatureLabel="Firma del Cliente"
+      />
+    </div>
+  )
+}
+
+function ComprobanteAbono({ info, installment, payment, balanceAfter, receiptRef, handleShare, sharing }) {
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-6 print:hidden">
+        <Link
+          href={installment.customer_id ? `/panel/clientes/${installment.customer_id}` : '/panel/clientes'}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeft size={16} />
+          Volver
+        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="flex items-center gap-2 bg-[#25D366] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity"
+          >
+            {sharing ? <Loader2 size={16} className="animate-spin" /> : <FaWhatsapp size={16} />}
+            {sharing ? 'Generando...' : 'Compartir por WhatsApp'}
+          </button>
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            <Printer size={16} />
+            Imprimir recibo
+          </button>
+        </div>
+      </div>
+
+      <div ref={receiptRef} className="bg-white border border-gray-200 rounded-xl p-8 print:hidden">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-200 pb-6 mb-6">
+          <div className="flex items-center gap-3">
+            {info?.logo && (
+              <img src={info.logo} alt={info.name} className="w-14 h-14 object-contain" />
+            )}
+            <div>
+              <p className="font-bold text-gray-900 text-lg">{info?.legal_name || info?.name}</p>
+              {info?.ruc && <p className="text-xs text-gray-500">RUC: {info.ruc}</p>}
+              {info?.address && <p className="text-xs text-gray-500">{info.address}</p>}
+              {info?.phone && <p className="text-xs text-gray-500">Tel: {info.phone}</p>}
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Recibo de Abono</p>
+            <p className="text-sm text-gray-500 mt-1">N° {String(payment.id).padStart(6, '0')}</p>
+            <p className="text-sm text-gray-500">Fecha: {formatDate(payment.payment_date)}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Cliente</p>
+            <p className="font-semibold text-gray-900">{installment.customer_name}</p>
+            <p className="text-gray-500">CI/RUC: {installment.customer_document}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Producto</p>
+            <p className="font-semibold text-gray-900">{installment.product_name}</p>
+            <p className="text-gray-500">Cuota {installment.number} de {installment.installment_count}</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end mb-2">
+          <div className="text-right">
+            <p className="text-xs font-semibold text-gray-400 uppercase">Monto Abonado</p>
+            <p className="text-2xl font-bold text-gray-900">{formatGs(payment.amount)}</p>
+          </div>
+        </div>
+        <div className="flex justify-end mb-10">
+          <div className="text-right">
+            <p className="text-xs font-semibold text-gray-400 uppercase">Saldo Restante de la Cuota</p>
+            <p className={`text-lg font-semibold ${balanceAfter > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+              {formatGs(balanceAfter)}
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-8 text-center text-sm pt-10">
+          <div>
+            <div className="border-t border-gray-400 pt-2">Firma del Cliente</div>
+          </div>
+          <div>
+            <div className="border-t border-gray-400 pt-2">{info?.legal_name || info?.name}</div>
+          </div>
+        </div>
+
+        <p className="text-center text-xs text-gray-400 mt-10">
+          Este comprobante certifica el abono indicado y no reemplaza la factura legal correspondiente.
+        </p>
+      </div>
+
+      <TicketReceipt
+        info={info}
+        title="Recibo de Abono"
+        receiptId={payment.id}
+        partyLabel="Cliente"
+        partyName={installment.customer_name}
+        partyExtra={`CI/RUC: ${installment.customer_document}`}
+        detailLabel="Producto"
+        detailValue={installment.product_name}
+        installmentNumber={installment.number}
+        installmentCount={installment.installment_count}
+        dueDate={installment.due_date}
+        paidDate={payment.payment_date}
+        amount={payment.amount}
+        amountLabel="MONTO ABONADO"
+        balanceAfter={balanceAfter}
+        signatureLabel="Firma del Cliente"
+      />
     </div>
   )
 }

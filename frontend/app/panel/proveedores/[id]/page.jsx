@@ -595,12 +595,21 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
                             Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
                           </div>
                         )}
-                        {inst.payments?.length > 0 && (
+                        {inst.status !== 'PAID' && inst.payments?.length > 0 && (
                           <ul className="text-xs text-gray-400 mt-0.5 space-y-0.5">
                             {inst.payments.map((p) => (
-                              <li key={p.id}>
-                                {formatGs(p.amount)} el {p.payment_date}
-                                {p.created_by_name ? ` · ${p.created_by_name}` : ''}
+                              <li key={p.id} className="flex items-center justify-end gap-1.5">
+                                <span>
+                                  {formatGs(p.amount)} el {p.payment_date}
+                                  {p.created_by_name ? ` · ${p.created_by_name}` : ''}
+                                </span>
+                                <Link
+                                  href={`/panel/cuotas-proveedor/${inst.id}/comprobante?pago=${p.id}`}
+                                  className="text-blue-600 hover:text-blue-800 shrink-0"
+                                  title="Ver e imprimir recibo de este abono"
+                                >
+                                  <Printer size={12} />
+                                </Link>
                               </li>
                             ))}
                           </ul>

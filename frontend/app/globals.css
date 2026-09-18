@@ -20,3 +20,39 @@ body {
   margin: 0 auto;
   padding: 0 20px;
 }
+
+/* Ticket de comprobante para impresora térmica 3nstar (rollo 58mm).
+   El bloque .ticket-receipt está oculto en pantalla y solo se muestra
+   al imprimir; el comprobante ancho normal se oculta en su lugar. */
+.ticket-receipt {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: 58mm auto;
+    margin: 0;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .ticket-receipt,
+  .ticket-receipt * {
+    visibility: visible;
+  }
+
+  .ticket-receipt {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 58mm;
+    padding: 2mm;
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    line-height: 1.4;
+    color: #000;
+  }
+}

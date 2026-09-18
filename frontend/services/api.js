@@ -361,6 +361,10 @@ export const saleService = {
     const { data } = await api.get('/sales/', { params })
     return data.results || data
   },
+  getById: async (id) => {
+    const { data } = await api.get(`/sales/${id}/`)
+    return data
+  },
   create: async (payload) => {
     const { data } = await api.post('/sales/', payload)
     return data

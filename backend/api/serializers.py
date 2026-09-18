@@ -82,7 +82,7 @@ class CompanyInfoSerializer(serializers.ModelSerializer):
 class CustomerSerializer(serializers.ModelSerializer):
     total_debt = serializers.SerializerMethodField()
     total_debt_remaining = serializers.SerializerMethodField()
-    total_credit_sales = serializers.SerializerMethodField()
+    total_purchases_history = serializers.SerializerMethodField()
     overdue_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -92,7 +92,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             'id_document_image', 'maps_location_url', 'economic_activity',
             'reference1_name', 'reference1_phone', 'reference1_relation',
             'reference2_name', 'reference2_phone', 'reference2_relation',
-            'total_debt', 'total_debt_remaining', 'total_credit_sales', 'overdue_count', 'created_at', 'updated_at',
+            'total_debt', 'total_debt_remaining', 'total_purchases_history', 'overdue_count', 'created_at', 'updated_at',
         ]
 
     def get_total_debt(self, obj):
@@ -110,9 +110,14 @@ class CustomerSerializer(serializers.ModelSerializer):
         total = sum((i.amount - i.paid for i in pending), Decimal('0'))
         return str(total)
 
-    def get_total_credit_sales(self, obj):
-        total = Installment.objects.filter(sale__customer=obj).aggregate(total=Sum('amount'))['total']
-        return str(total or 0)
+    def get_total_purchases_history(self, obj):
+        # total_amount es una @property (depende de items e interest_rate),
+        # no un campo de DB, así que no se puede agregar con Sum() en SQL:
+        # se itera sobre las ventas del cliente sumando en Python. Incluye
+        # ventas al contado y a crédito (histórico completo de compras).
+        sales = obj.sales.prefetch_related('items')
+        total = sum((sale.total_amount for sale in sales), Decimal('0'))
+        return str(total)
 
     def get_overdue_count(self, obj):
         return Installment.objects.filter(sale__customer=obj, status=Installment.STATUS_OVERDUE).count()
@@ -271,6 +276,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
 class SaleSerializer(serializers.ModelSerializer):
     items = SaleItemSerializer(many=True)
     customer_name = serializers.CharField(source='customer.full_name', read_only=True)
+    customer_document = serializers.CharField(source='customer.document_number', read_only=True)
     total_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
     installments = InstallmentSerializer(many=True, read_only=True)
@@ -278,8 +284,8 @@ class SaleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sale
         fields = [
-            'id', 'customer', 'customer_name', 'items', 'payment_type', 'installment_count', 'interest_rate',
-            'down_payment', 'payment_day', 'late_fee_rate',
+            'id', 'customer', 'customer_name', 'customer_document', 'items', 'payment_type', 'installment_count',
+            'interest_rate', 'down_payment', 'payment_day', 'late_fee_rate',
             'sale_date', 'notes', 'total_amount', 'remaining_amount', 'installments', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']

@@ -161,9 +161,9 @@ export default function ClienteDetallePage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500 uppercase font-semibold">Deuda Original</p>
+            <p className="text-xs text-gray-500 uppercase font-semibold">Histórico de Compras</p>
             <p className="text-lg font-semibold text-gray-500">
-              {formatGs(customer.total_credit_sales)}
+              {formatGs(customer.total_purchases_history)}
             </p>
             <p className="text-xs text-gray-500 uppercase font-semibold mt-2">Saldo Pendiente</p>
             <p className={`text-2xl font-bold ${parseFloat(customer.total_debt_remaining) > 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -787,43 +787,54 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
     : `${items.length} productos`
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between flex-wrap gap-2 mb-3 text-left"
-      >
-        <div>
-          <p className="font-semibold text-gray-900">{itemsLabel}</p>
-          <p className="text-xs text-gray-500">
-            {sale.sale_date} · {isCash ? 'Contado' : `${sale.installment_count} cuotas`}
-          </p>
-          {!isCash && parseFloat(sale.down_payment) > 0 && (
-            <p className="text-xs text-emerald-600 font-medium mt-0.5">
-              Entrega inicial: {formatGs(sale.down_payment)}
+      <div className="flex items-center gap-2 mb-3">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex-1 flex items-center justify-between flex-wrap gap-2 text-left"
+        >
+          <div>
+            <p className="font-semibold text-gray-900">{itemsLabel}</p>
+            <p className="text-xs text-gray-500">
+              {sale.sale_date} · {isCash ? 'Contado' : `${sale.installment_count} cuotas`}
             </p>
-          )}
-          {items.length > 1 && (
-            <ul className="text-xs text-gray-500 mt-1 space-y-0.5">
-              {items.map((it) => (
-                <li key={it.id}>{it.quantity}x {it.product_name}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="font-bold text-gray-900">{formatGs(sale.total_amount)}</p>
-            {!isCash && parseFloat(sale.remaining_amount) > 0 && (
-              <p className="text-xs text-amber-600 font-medium">Saldo: {formatGs(sale.remaining_amount)}</p>
+            {!isCash && parseFloat(sale.down_payment) > 0 && (
+              <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                Entrega inicial: {formatGs(sale.down_payment)}
+              </p>
+            )}
+            {items.length > 1 && (
+              <ul className="text-xs text-gray-500 mt-1 space-y-0.5">
+                {items.map((it) => (
+                  <li key={it.id}>{it.quantity}x {it.product_name}</li>
+                ))}
+              </ul>
             )}
           </div>
-          {!isCash && sale.installments?.length > 0 && (
-            expanded
-              ? <ChevronUp size={18} className="text-gray-400 shrink-0" />
-              : <ChevronDown size={18} className="text-gray-400 shrink-0" />
-          )}
-        </div>
-      </button>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="font-bold text-gray-900">{formatGs(sale.total_amount)}</p>
+              {!isCash && parseFloat(sale.remaining_amount) > 0 && (
+                <p className="text-xs text-amber-600 font-medium">Saldo: {formatGs(sale.remaining_amount)}</p>
+              )}
+            </div>
+            {!isCash && sale.installments?.length > 0 && (
+              expanded
+                ? <ChevronUp size={18} className="text-gray-400 shrink-0" />
+                : <ChevronDown size={18} className="text-gray-400 shrink-0" />
+            )}
+          </div>
+        </button>
+        {isCash && (
+          <Link
+            href={`/panel/ventas/${sale.id}/comprobante`}
+            className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
+            title="Ver e imprimir comprobante"
+          >
+            <Printer size={16} />
+          </Link>
+        )}
+      </div>
 
       {expanded && !isCash && sale.installments?.length > 0 && (
         <table className="w-full text-sm mt-3">
@@ -851,12 +862,21 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
                         Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
                       </div>
                     )}
-                    {inst.payments?.length > 0 && (
+                    {inst.status !== 'PAID' && inst.payments?.length > 0 && (
                       <ul className="text-xs text-gray-400 mt-0.5 space-y-0.5">
                         {inst.payments.map((p) => (
-                          <li key={p.id}>
-                            {formatGs(p.amount)} el {p.payment_date}
-                            {p.created_by_name ? ` · ${p.created_by_name}` : ''}
+                          <li key={p.id} className="flex items-center justify-end gap-1.5">
+                            <span>
+                              {formatGs(p.amount)} el {p.payment_date}
+                              {p.created_by_name ? ` · ${p.created_by_name}` : ''}
+                            </span>
+                            <Link
+                              href={`/panel/cuotas/${inst.id}/comprobante?pago=${p.id}`}
+                              className="text-blue-600 hover:text-blue-800 shrink-0"
+                              title="Ver e imprimir recibo de este abono"
+                            >
+                              <Printer size={12} />
+                            </Link>
                           </li>
                         ))}
                       </ul>
