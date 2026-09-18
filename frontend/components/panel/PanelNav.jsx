@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, Users, ShoppingCart, Store, Percent, Package, Tags, Building2, Inbox, LogOut, BarChart3, Receipt, ShieldCheck, Truck, PackagePlus, X } from 'lucide-react'
+import { LayoutDashboard, Users, ShoppingCart, Percent, Package, Tags, Building2, Inbox, LogOut, BarChart3, Receipt, ShieldCheck, Truck, PackagePlus, X } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { useCompanyInfo } from '@/hooks/useCompanyInfo'
 
@@ -90,13 +90,6 @@ export default function PanelNav({ open, onClose }) {
         </nav>
 
         <div className="px-3 py-4 border-t border-gray-800 space-y-1">
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
-          >
-            <Store size={18} />
-            Ver Tienda
-          </Link>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-red-400 transition-colors"
