@@ -9,7 +9,7 @@ from django.db.models.functions import TruncMonth, TruncDay, TruncWeek
 from datetime import date, timedelta
 from decimal import Decimal
 from .models import (
-    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, Order, Expense, AuditLog,
+    Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment, Order, Expense, AuditLog,
     Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
 )
 from .serializers import (
@@ -902,6 +902,120 @@ class InstallmentViewSet(viewsets.ModelViewSet):
             'cuotas_por_cobrar.xlsx', 'Cuotas por cobrar', columns, rows,
             report_title='Reporte de Cuotas por Cobrar',
             extra_meta=[f'Período: {due_from} a {due_to}'],
+        )
+
+    def _cobrado_range(self, request):
+        today = timezone.now().date()
+        date_from = request.query_params.get('date_from') or today.isoformat()
+        date_to = request.query_params.get('date_to') or today.isoformat()
+        return date_from, date_to
+
+    def _cobrado_data(self, date_from, date_to):
+        from .reports_export import to_number
+
+        data = []
+
+        cash_sales = Sale.objects.filter(
+            payment_type=Sale.PAYMENT_CASH, sale_date__gte=date_from, sale_date__lte=date_to
+        ).select_related('customer').prefetch_related('items')
+        for sale in cash_sales:
+            data.append({
+                'date': sale.sale_date.strftime('%d/%m/%Y'),
+                'sort_date': sale.sale_date.isoformat(),
+                'customer_id': sale.customer_id,
+                'customer_name': sale.customer.full_name,
+                'document_number': sale.customer.document_number,
+                'concept': 'Venta al contado',
+                'amount': to_number(sale.total_amount),
+            })
+
+        down_payment_sales = Sale.objects.filter(
+            payment_type=Sale.PAYMENT_INSTALLMENTS, down_payment__gt=0,
+            sale_date__gte=date_from, sale_date__lte=date_to,
+        ).select_related('customer')
+        for sale in down_payment_sales:
+            data.append({
+                'date': sale.sale_date.strftime('%d/%m/%Y'),
+                'sort_date': sale.sale_date.isoformat(),
+                'customer_id': sale.customer_id,
+                'customer_name': sale.customer.full_name,
+                'document_number': sale.customer.document_number,
+                'concept': 'Entrega inicial',
+                'amount': to_number(sale.down_payment),
+            })
+
+        payments = InstallmentPayment.objects.filter(
+            payment_date__gte=date_from, payment_date__lte=date_to
+        ).select_related('installment__sale__customer')
+        for p in payments:
+            sale = p.installment.sale
+            data.append({
+                'date': p.payment_date.strftime('%d/%m/%Y'),
+                'sort_date': p.payment_date.isoformat(),
+                'customer_id': sale.customer_id,
+                'customer_name': sale.customer.full_name,
+                'document_number': sale.customer.document_number,
+                'concept': f'Abono cuota {p.installment.number}/{sale.installment_count}',
+                'amount': to_number(p.amount),
+            })
+
+        # Cuotas marcadas como pagadas sin un InstallmentPayment individual:
+        # datos de la migración de cuotas legado, donde solo se conserva la
+        # fecha en que se registró el pago (paid_date), no el detalle de
+        # abonos parciales. Se incluyen para no perder ese historial de cobro.
+        legacy_paid = Installment.objects.filter(
+            status=Installment.STATUS_PAID, payments__isnull=True,
+            paid_date__gte=date_from, paid_date__lte=date_to,
+        ).select_related('sale__customer')
+        for inst in legacy_paid:
+            sale = inst.sale
+            data.append({
+                'date': inst.paid_date.strftime('%d/%m/%Y'),
+                'sort_date': inst.paid_date.isoformat(),
+                'customer_id': sale.customer_id,
+                'customer_name': sale.customer.full_name,
+                'document_number': sale.customer.document_number,
+                'concept': f'Cuota {inst.number}/{sale.installment_count} (dato migrado)',
+                'amount': to_number(inst.amount),
+            })
+
+        data.sort(key=lambda r: r['sort_date'])
+        for r in data:
+            del r['sort_date']
+        return data
+
+    @action(detail=False, methods=['get'], url_path='cobrado_preview')
+    def cobrado_preview(self, request):
+        date_from, date_to = self._cobrado_range(request)
+        results = self._cobrado_data(date_from, date_to)
+        total = sum(Decimal(str(r['amount'])) for r in results)
+        return Response({
+            'date_from': date_from, 'date_to': date_to,
+            'total': str(total), 'results': results,
+        })
+
+    @action(detail=False, methods=['get'], url_path='export_cobrado')
+    def export_cobrado(self, request):
+        from .reports_export import build_xlsx_response
+        date_from, date_to = self._cobrado_range(request)
+        data = self._cobrado_data(date_from, date_to)
+
+        columns = [
+            {'header': 'Fecha', 'width': 14},
+            {'header': 'Cliente', 'width': 32},
+            {'header': 'CI/RUC', 'width': 16},
+            {'header': 'Concepto', 'width': 26},
+            {'header': 'Monto cobrado', 'width': 16, 'format': 'gs'},
+        ]
+        rows = [
+            (r['date'], r['customer_name'], r['document_number'], r['concept'], r['amount'])
+            for r in data
+        ]
+
+        return build_xlsx_response(
+            'cobrado_periodo.xlsx', 'Cobrado', columns, rows,
+            report_title='Reporte de Lo Cobrado en el Período',
+            extra_meta=[f'Período: {date_from} a {date_to}'],
         )
 
     @action(detail=True, methods=['post'])

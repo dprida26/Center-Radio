@@ -593,6 +593,8 @@ export const exportService = {
   previewMora: async (params = {}) => (await api.get('/customers/mora_preview/', { params })).data,
   previewStock: async () => (await api.get('/products/stock_preview/')).data,
   previewPorCobrar: async (params = {}) => (await api.get('/installments/por_cobrar_preview/', { params })).data,
+  cobrado: (params = {}) => downloadFile('/installments/export_cobrado/', params),
+  previewCobrado: async (params = {}) => (await api.get('/installments/cobrado_preview/', { params })).data,
   ventas: (params = {}) => downloadFile('/sales/export_ventas/', params),
   topProductos: (params = {}) => downloadFile('/sales/export_top_productos/', params),
   resumenVentas: (params = {}) => downloadFile('/sales/export_resumen/', params),

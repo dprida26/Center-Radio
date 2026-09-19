@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import {
   BarChart3, TrendingUp, ShoppingBag, AlertTriangle,
   Package, Loader2, Truck, Users,
-  FileSpreadsheet, Download, UserX, Boxes, CalendarClock, Search,
+  FileSpreadsheet, Download, UserX, Boxes, CalendarClock, Search, Wallet,
 } from 'lucide-react'
 import { installmentService, exportService } from '@/services/api'
 
@@ -73,7 +73,7 @@ function ReportesPageInner() {
       </div>
 
       {tab === 'ventas' && <ReportesVentas />}
-      {tab === 'cobranza' && <PorCobrarReport />}
+      {tab === 'cobranza' && <ReportesCobranza />}
       {tab === 'proveedores' && <ProveedoresReport />}
       {tab === 'operativos' && <ReportesOperativos />}
     </div>
@@ -781,6 +781,131 @@ function StockReport() {
             </tbody>
           </table>
         </div>
+      )}
+    </ReportPanel>
+  )
+}
+
+const COBRANZA_REPORTS = [
+  { key: 'cobrado', label: 'Cobrado en el período', icon: Wallet, color: 'green' },
+  { key: 'por_cobrar', label: 'Cuotas por cobrar', icon: CalendarClock, color: 'amber' },
+]
+
+function ReportesCobranza() {
+  const [reportKey, setReportKey] = useState('cobrado')
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {COBRANZA_REPORTS.map((r) => (
+          <button
+            key={r.key}
+            onClick={() => setReportKey(r.key)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors ${
+              reportKey === r.key
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <r.icon size={16} />
+            {r.label}
+          </button>
+        ))}
+      </div>
+
+      {reportKey === 'cobrado' && <CobradoReport />}
+      {reportKey === 'por_cobrar' && <PorCobrarReport />}
+    </div>
+  )
+}
+
+function CobradoReport() {
+  const todayISO = () => new Date().toISOString().slice(0, 10)
+  const [draftFrom, setDraftFrom] = useState(todayISO)
+  const [draftTo, setDraftTo] = useState(todayISO)
+  const [dateFrom, setDateFrom] = useState(todayISO)
+  const [dateTo, setDateTo] = useState(todayISO)
+  const search = () => {
+    setDateFrom(draftFrom)
+    setDateTo(draftTo)
+  }
+  const [rows, setRows] = useState([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [downloading, setDownloading] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    exportService.previewCobrado({ date_from: dateFrom, date_to: dateTo })
+      .then((data) => {
+        setRows(data.results)
+        setTotal(data.total)
+      })
+      .finally(() => setLoading(false))
+  }, [dateFrom, dateTo])
+
+  const handleExport = async () => {
+    setDownloading(true)
+    try {
+      await exportService.cobrado({ date_from: dateFrom, date_to: dateTo })
+    } catch {
+      alert('No se pudo generar el reporte.')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <ReportPanel
+      icon={Wallet}
+      color="green"
+      title="Cobrado en el período"
+      description="Dinero efectivamente cobrado: ventas al contado, entregas iniciales y abonos de cuotas."
+      count={rows.length}
+      downloading={downloading}
+      onExport={handleExport}
+      filters={<DateRangeFilter draftFrom={draftFrom} setDraftFrom={setDraftFrom} draftTo={draftTo} setDraftTo={setDraftTo} onSearch={search} />}
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={22} className="animate-spin text-gray-400" />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState text="No se registraron cobros en ese período." />
+      ) : (
+        <>
+          <div className="px-5 py-3 bg-green-50 border-b border-green-100 flex justify-between items-center">
+            <span className="text-sm font-medium text-green-800">Total cobrado</span>
+            <span className="text-lg font-bold text-green-700">{formatGs(total)}</span>
+          </div>
+          <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr className="text-left text-gray-500">
+                  <th className="px-5 py-3 font-medium whitespace-nowrap">Fecha</th>
+                  <th className="px-5 py-3 font-medium whitespace-nowrap">Cliente</th>
+                  <th className="px-5 py-3 font-medium whitespace-nowrap">Concepto</th>
+                  <th className="px-5 py-3 font-medium text-right whitespace-nowrap">Monto cobrado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, idx) => (
+                  <tr key={idx} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.date}</td>
+                    <td className="px-5 py-3 whitespace-nowrap">
+                      <Link href={`/panel/clientes/${r.customer_id ?? ''}`} className="font-medium text-blue-600 hover:underline">
+                        {r.customer_name}
+                      </Link>
+                      <p className="text-xs text-gray-400">{r.document_number}</p>
+                    </td>
+                    <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{r.concept}</td>
+                    <td className="px-5 py-3 text-right font-medium text-gray-900 whitespace-nowrap">{formatGs(r.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </ReportPanel>
   )
