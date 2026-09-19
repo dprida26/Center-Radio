@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2, Pencil, Printer, Package, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2, Pencil, Printer, Package, ChevronDown, ChevronUp, FileMinus2 } from 'lucide-react'
 import Link from 'next/link'
 import { supplierService, purchaseInstallmentService } from '@/services/api'
 
@@ -43,11 +43,11 @@ export default function ProveedorDetallePage() {
     load()
   }, [load])
 
-  const handleConfirmPayment = async (amount) => {
+  const handleConfirmPayment = async (amount, paymentDate) => {
     if (!confirmTarget) return
     setBusyId(confirmTarget.id)
     try {
-      const result = await purchaseInstallmentService.markPaid(confirmTarget.id, amount)
+      const result = await purchaseInstallmentService.markPaid(confirmTarget.id, amount, paymentDate)
       load()
       setConfirmTarget(null)
       if (result.overpaid_unapplied && parseFloat(result.overpaid_unapplied) > 0) {
@@ -383,6 +383,7 @@ function EditSupplierModal({ supplier, onCancel, onSaved }) {
 function ConfirmSupplierPaymentModal({ installment, busy, onCancel, onConfirm }) {
   const remaining = parseFloat(installment.remaining_amount ?? installment.amount)
   const [amount, setAmount] = useState(String(Math.round(remaining)))
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const numericAmount = parseFloat(amount) || 0
   const diff = numericAmount - remaining
@@ -425,6 +426,14 @@ function ConfirmSupplierPaymentModal({ installment, busy, onCancel, onConfirm })
           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
         />
 
+        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fecha del pago</label>
+        <input
+          type="date"
+          value={paymentDate}
+          onChange={(e) => setPaymentDate(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+        />
+
         {isPartial && (
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
             Pago parcial: quedará un saldo de {formatGs(remaining - numericAmount)} pendiente en esta cuota.
@@ -450,7 +459,7 @@ function ConfirmSupplierPaymentModal({ installment, busy, onCancel, onConfirm })
             Cancelar
           </button>
           <button
-            onClick={() => onConfirm(numericAmount)}
+            onClick={() => onConfirm(numericAmount, paymentDate)}
             disabled={busy || numericAmount <= 0}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
           >
@@ -567,6 +576,51 @@ function PurchaseInvoiceCard({ purchase, onRequestMarkPaid, onRevert, busyId, de
             </tbody>
           </table>
           </div>
+
+          {purchase.credit_notes?.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-red-600 uppercase mb-2 flex items-center gap-1.5">
+                <FileMinus2 size={13} />
+                Notas de crédito
+              </p>
+              <div className="space-y-2">
+                {purchase.credit_notes.map((cn) => {
+                  const isMulti = cn.allocated_amount_for_invoice !== null && cn.allocated_amount_for_invoice !== undefined
+                  const amountForThisInvoice = isMulti ? cn.allocated_amount_for_invoice : cn.total_amount
+                  return (
+                  <div key={cn.id} className="border border-red-100 bg-red-50/60 rounded-lg p-3">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {cn.credit_note_number || `NC #${cn.id}`}
+                        <span className="text-xs font-normal text-gray-500 ml-2">{cn.issue_date}</span>
+                      </p>
+                      <p className="text-sm font-bold text-red-700">- {formatGs(amountForThisInvoice)}</p>
+                    </div>
+                    {cn.reason && <p className="text-xs text-gray-500 mt-0.5">Motivo: {cn.reason}</p>}
+                    {isMulti && (
+                      <p className="text-xs text-gray-500 mt-1.5 italic">
+                        Descuento por Gs. {formatGs(cn.total_amount)} repartido entre {cn.invoice_allocations.length} facturas de este proveedor.
+                      </p>
+                    )}
+                    {!isMulti && cn.items.length === 0 && (
+                      <p className="text-xs text-gray-500 mt-1.5 italic">Descuento sin devolución de mercadería.</p>
+                    )}
+                    {!isMulti && cn.items.length > 0 && (
+                    <ul className="text-xs text-gray-600 mt-1.5 space-y-0.5">
+                      {cn.items.map((item) => (
+                        <li key={item.id} className="flex items-center justify-between">
+                          <span>{item.quantity}x {item.product_name}</span>
+                          <span>{formatGs(item.subtotal)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    )}
+                  </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {!isCash && purchase.purchase_installments?.length > 0 && (
             <div className="overflow-x-auto">

@@ -384,9 +384,10 @@ export const installmentService = {
     const { data } = await api.get(`/installments/${id}/`)
     return data
   },
-  markPaid: async (id, paidAmount) => {
+  markPaid: async (id, paidAmount, paymentDate) => {
     const { data } = await api.post(`/installments/${id}/mark_paid/`, {
       paid_amount: paidAmount,
+      payment_date: paymentDate || undefined,
     })
     return data
   },
@@ -461,6 +462,21 @@ export const purchaseInvoiceService = {
   },
 }
 
+export const creditNoteService = {
+  getAll: async (params = {}) => {
+    const { data } = await api.get('/credit-notes/', { params })
+    return data.results || data
+  },
+  getById: async (id) => {
+    const { data } = await api.get(`/credit-notes/${id}/`)
+    return data
+  },
+  create: async (payload) => {
+    const { data } = await api.post('/credit-notes/', payload)
+    return data
+  },
+}
+
 export const purchaseInstallmentService = {
   getAll: async (params = {}) => {
     const { data } = await api.get('/purchase-installments/', { params })
@@ -470,9 +486,10 @@ export const purchaseInstallmentService = {
     const { data } = await api.get(`/purchase-installments/${id}/`)
     return data
   },
-  markPaid: async (id, paidAmount) => {
+  markPaid: async (id, paidAmount, paymentDate) => {
     const { data } = await api.post(`/purchase-installments/${id}/mark_paid/`, {
       paid_amount: paidAmount,
+      payment_date: paymentDate || undefined,
     })
     return data
   },

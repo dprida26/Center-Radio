@@ -941,3 +941,147 @@ class AuditLog(models.Model):
     def __str__(self):
         who = self.user.username if self.user else 'Sistema'
         return f'{who} - {self.get_action_display()} - {self.model_name} ({self.created_at})'
+
+
+class CreditNote(models.Model):
+    """
+    Nota de crédito de proveedor: devolución total o parcial de mercadería,
+    o un descuento en dinero sin devolución física. Reduce la deuda de una
+    o varias facturas de compra del proveedor (cancelando cuotas pendientes
+    desde la última hacia atrás en cada una), y si tiene ítems descuenta
+    también el stock correspondiente.
+
+    - Caso simple (una sola factura, con o sin ítems físicos): se usa
+      `purchase_invoice`.
+    - Caso "descuento sobre varias facturas del mismo proveedor" (ej. el
+      proveedor trae varias facturas el mismo día y aplica un descuento
+      conjunto): se usa `supplier` + `invoices` (M2M vía
+      CreditNoteInvoiceAllocation), sin `purchase_invoice`. El monto total
+      se reparte proporcionalmente al saldo pendiente de cada factura.
+    """
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.PROTECT, related_name='credit_notes', verbose_name='Proveedor',
+        null=True, blank=True,
+    )
+    purchase_invoice = models.ForeignKey(
+        PurchaseInvoice, on_delete=models.PROTECT, related_name='credit_notes', verbose_name='Compra',
+        null=True, blank=True,
+    )
+    invoices = models.ManyToManyField(
+        PurchaseInvoice, through='CreditNoteInvoiceAllocation', related_name='credit_note_allocations',
+        verbose_name='Facturas (descuento múltiple)', blank=True,
+    )
+    credit_note_number = models.CharField(max_length=50, blank=True, verbose_name='N° de Nota de Crédito')
+    issue_date = models.DateField(verbose_name='Fecha de Emisión')
+    reason = models.CharField(max_length=255, blank=True, verbose_name='Motivo')
+    notes = models.TextField(blank=True, verbose_name='Notas')
+    manual_amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True, verbose_name='Monto Manual',
+        help_text='Si se define, la nota es un descuento sin devolución de mercadería: no afecta stock y este monto reemplaza el cálculo por ítems.',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
+
+    class Meta:
+        ordering = ['-issue_date', '-created_at']
+        verbose_name = 'Nota de Crédito'
+        verbose_name_plural = 'Notas de Crédito'
+
+    def __str__(self):
+        if self.purchase_invoice_id:
+            return f'NC #{self.id} - Compra #{self.purchase_invoice_id} - {self.purchase_invoice.supplier.name}'
+        return f'NC #{self.id} - {self.supplier.name if self.supplier_id else "?"} (multi-factura)'
+
+    @property
+    def is_manual(self):
+        return self.manual_amount is not None
+
+    @property
+    def is_multi_invoice(self):
+        return self.purchase_invoice_id is None
+
+    @property
+    def total_amount(self):
+        if self.is_manual:
+            return self.manual_amount
+        return sum((item.subtotal for item in self.items.all()), Decimal('0'))
+
+    def _apply_to_installments(self, purchase_invoice, credit_amount):
+        remaining_credit = credit_amount
+        pending_installments = list(
+            purchase_invoice.purchase_installments
+            .exclude(status=PurchaseInstallment.STATUS_PAID)
+            .order_by('-number')
+        )
+        for installment in pending_installments:
+            if remaining_credit <= 0:
+                break
+            owed = installment.remaining_amount
+            applied = min(owed, remaining_credit)
+            installment.amount -= applied
+            remaining_credit -= applied
+            if installment.amount <= installment.paid_so_far:
+                installment.status = PurchaseInstallment.STATUS_PAID
+                installment.paid_date = self.issue_date
+                installment.paid_amount = installment.paid_so_far
+            installment.save()
+
+    def apply(self):
+        """
+        Si la nota tiene ítems (devolución física), descuenta stock de cada
+        uno. Si es una nota manual, no toca stock. Reduce la deuda pendiente
+        de la factura asociada (o, en el caso multi-factura, de cada una de
+        las facturas elegidas repartiendo el monto proporcionalmente a su
+        saldo pendiente), cancelando/reduciendo cuotas desde la última hacia
+        atrás. Si no queda deuda pendiente, la nota queda igual registrada
+        como constancia.
+        """
+        if not self.is_manual:
+            for item in self.items.select_related('product').all():
+                item.product.adjust_stock(
+                    -item.quantity,
+                    reason=f'Devolución por Nota de Crédito #{self.id} (Compra #{self.purchase_invoice_id})',
+                )
+
+        if self.is_multi_invoice:
+            allocations = list(self.invoice_allocations.select_related('purchase_invoice').all())
+            for allocation in allocations:
+                self._apply_to_installments(allocation.purchase_invoice, allocation.allocated_amount)
+        else:
+            self._apply_to_installments(self.purchase_invoice, self.total_amount)
+
+
+class CreditNoteInvoiceAllocation(models.Model):
+    """
+    Reparto del monto de una nota de crédito multi-factura entre las
+    facturas de compra elegidas, proporcional al saldo pendiente de cada
+    una al momento de emitir la nota.
+    """
+    credit_note = models.ForeignKey(CreditNote, on_delete=models.CASCADE, related_name='invoice_allocations', verbose_name='Nota de Crédito')
+    purchase_invoice = models.ForeignKey(PurchaseInvoice, on_delete=models.PROTECT, related_name='credit_note_invoice_allocations', verbose_name='Compra')
+    allocated_amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto Asignado')
+
+    class Meta:
+        verbose_name = 'Asignación de Nota de Crédito a Factura'
+        verbose_name_plural = 'Asignaciones de Nota de Crédito a Facturas'
+        unique_together = ['credit_note', 'purchase_invoice']
+
+    def __str__(self):
+        return f'NC #{self.credit_note_id} -> Compra #{self.purchase_invoice_id}: Gs. {self.allocated_amount}'
+
+
+class CreditNoteItem(models.Model):
+    credit_note = models.ForeignKey(CreditNote, on_delete=models.CASCADE, related_name='items', verbose_name='Nota de Crédito')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='credit_note_items', verbose_name='Producto')
+    quantity = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Costo Unitario')
+
+    class Meta:
+        verbose_name = 'Ítem de Nota de Crédito'
+        verbose_name_plural = 'Ítems de Nota de Crédito'
+
+    def __str__(self):
+        return f'{self.quantity} x {self.product.name}'
+
+    @property
+    def subtotal(self):
+        return self.unit_cost * self.quantity

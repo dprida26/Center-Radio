@@ -10,13 +10,13 @@ from datetime import date, timedelta
 from decimal import Decimal
 from .models import (
     Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment, Order, Expense, AuditLog,
-    Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment,
+    Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment, CreditNote,
 )
 from .serializers import (
     CategorySerializer, ProductSerializer, PromotionSerializer, CompanyInfoSerializer,
     CustomerSerializer, SaleSerializer, InstallmentSerializer, OrderSerializer, ProductImageSerializer,
     ExpenseSerializer, StockMovementSerializer, AuditLogSerializer,
-    SupplierSerializer, PurchaseInvoiceSerializer, PurchaseInstallmentSerializer,
+    SupplierSerializer, PurchaseInvoiceSerializer, PurchaseInstallmentSerializer, CreditNoteSerializer,
 )
 from .audit import AuditMixin, log_action
 
@@ -483,6 +483,9 @@ class SupplierViewSet(AuditMixin, viewsets.ModelViewSet):
         supplier = self.get_object()
         invoices = supplier.purchase_invoices.all().prefetch_related(
             'items', 'items__product', 'purchase_installments', 'purchase_installments__payments',
+            'credit_notes', 'credit_notes__items', 'credit_notes__items__product',
+            'credit_note_allocations', 'credit_note_allocations__items', 'credit_note_allocations__items__product',
+            'credit_note_allocations__invoice_allocations',
         ).order_by('-purchase_date')
         serializer = PurchaseInvoiceSerializer(invoices, many=True)
         return Response(serializer.data)
@@ -753,10 +756,22 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
 
 
 class PurchaseInvoiceViewSet(AuditMixin, viewsets.ModelViewSet):
-    queryset = PurchaseInvoice.objects.all().select_related('supplier').prefetch_related('items', 'items__product', 'purchase_installments', 'purchase_installments__payments').order_by('-purchase_date', '-created_at')
+    queryset = PurchaseInvoice.objects.all().select_related('supplier').prefetch_related(
+        'items', 'items__product', 'purchase_installments', 'purchase_installments__payments',
+        'credit_notes', 'credit_notes__items', 'credit_notes__items__product',
+        'credit_note_allocations', 'credit_note_allocations__items', 'credit_note_allocations__items__product',
+        'credit_note_allocations__invoice_allocations',
+    ).order_by('-purchase_date', '-created_at')
     serializer_class = PurchaseInvoiceSerializer
     filter_backends = [filters.SearchFilter]
     search_fields = ['supplier__name', 'invoice_number']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        supplier_id = self.request.query_params.get('supplier')
+        if supplier_id:
+            qs = qs.filter(supplier_id=supplier_id)
+        return qs
 
     def perform_create(self, serializer):
         invoice = serializer.save()
@@ -773,6 +788,20 @@ class PurchaseInvoiceViewSet(AuditMixin, viewsets.ModelViewSet):
                 item.product.save(update_fields=['usual_supplier'])
         invoice.generate_installments()
         log_action(self.request.user, AuditLog.ACTION_CREATE, invoice)
+
+
+class CreditNoteViewSet(AuditMixin, viewsets.ModelViewSet):
+    queryset = CreditNote.objects.all().select_related('purchase_invoice__supplier', 'supplier').prefetch_related(
+        'items', 'items__product', 'invoice_allocations', 'invoice_allocations__purchase_invoice',
+    ).order_by('-issue_date', '-created_at')
+    serializer_class = CreditNoteSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['purchase_invoice__supplier__name', 'purchase_invoice__invoice_number', 'credit_note_number']
+
+    def perform_create(self, serializer):
+        credit_note = serializer.save()
+        credit_note.apply()
+        log_action(self.request.user, AuditLog.ACTION_CREATE, credit_note)
 
 
 class ExpenseViewSet(AuditMixin, viewsets.ModelViewSet):
@@ -1032,9 +1061,10 @@ class InstallmentViewSet(viewsets.ModelViewSet):
 
         raw_amount = request.data.get('paid_amount')
         amount = Decimal(str(raw_amount)) if raw_amount not in (None, '') else installment.remaining_amount or installment.amount
+        payment_date = request.data.get('payment_date') or None
 
         try:
-            affected, sobrante = installment.register_payment(amount=amount, created_by=request.user)
+            affected, sobrante = installment.register_payment(amount=amount, payment_date=payment_date, created_by=request.user)
         except ValueError as e:
             return Response({'error': str(e)}, status=400)
 
@@ -1231,9 +1261,10 @@ class PurchaseInstallmentViewSet(viewsets.ModelViewSet):
                 status=400,
             )
         amount = request.data.get('paid_amount') or installment.remaining_amount
+        payment_date = request.data.get('payment_date') or None
         try:
             affected, overpaid_unapplied = installment.register_payment(
-                amount, created_by=request.user,
+                amount, payment_date=payment_date, created_by=request.user,
             )
         except ValueError as e:
             return Response({'error': str(e)}, status=400)

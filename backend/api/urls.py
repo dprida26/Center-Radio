@@ -5,7 +5,7 @@ from .views import (
     CategoryViewSet, ProductViewSet, PromotionViewSet, CompanyInfoViewSet,
     CustomerViewSet, SaleViewSet, InstallmentViewSet, OrderViewSet, ExpenseViewSet,
     AuditLogViewSet, AdminTokenObtainPairView, me, reports, home_dashboard,
-    SupplierViewSet, PurchaseInvoiceViewSet, PurchaseInstallmentViewSet,
+    SupplierViewSet, PurchaseInvoiceViewSet, PurchaseInstallmentViewSet, CreditNoteViewSet,
 )
 
 router = DefaultRouter()
@@ -22,6 +22,7 @@ router.register(r'audit-logs', AuditLogViewSet, basename='audit-log')
 router.register(r'suppliers', SupplierViewSet)
 router.register(r'purchase-invoices', PurchaseInvoiceViewSet)
 router.register(r'purchase-installments', PurchaseInstallmentViewSet)
+router.register(r'credit-notes', CreditNoteViewSet)
 
 urlpatterns = [
     path('auth/login/', AdminTokenObtainPairView.as_view(), name='auth-login'),

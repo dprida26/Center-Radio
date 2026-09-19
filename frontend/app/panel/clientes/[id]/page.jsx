@@ -52,11 +52,11 @@ export default function ClienteDetallePage() {
     load()
   }, [load])
 
-  const handleConfirmPayment = async (amount) => {
+  const handleConfirmPayment = async (amount, paymentDate) => {
     if (!confirmTarget) return
     setBusyId(confirmTarget.id)
     try {
-      const result = await installmentService.markPaid(confirmTarget.id, amount)
+      const result = await installmentService.markPaid(confirmTarget.id, amount, paymentDate)
       load()
       setConfirmTarget(null)
       if (result.overpaid_unapplied) {
@@ -581,6 +581,7 @@ function EditCustomerModal({ customer, onCancel, onSaved }) {
 function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
   const remaining = parseFloat(installment.remaining_amount ?? installment.amount)
   const [amount, setAmount] = useState(String(Math.round(remaining)))
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const numericAmount = parseFloat(amount) || 0
   const diff = numericAmount - remaining
@@ -623,6 +624,14 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
         />
 
+        <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fecha del pago</label>
+        <input
+          type="date"
+          value={paymentDate}
+          onChange={(e) => setPaymentDate(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
+        />
+
         {isPartial && (
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
             Pago parcial: quedará un saldo de {formatGs(remaining - numericAmount)} pendiente en esta cuota.
@@ -643,7 +652,7 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
             Cancelar
           </button>
           <button
-            onClick={() => onConfirm(numericAmount)}
+            onClick={() => onConfirm(numericAmount, paymentDate)}
             disabled={busy || numericAmount <= 0}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
           >

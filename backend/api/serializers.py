@@ -2,7 +2,7 @@ from decimal import Decimal
 from rest_framework import serializers
 from django.db.models import Sum, Q, F
 from django.db.models.functions import Coalesce
-from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment, PurchaseInstallmentPayment
+from .models import Category, Product, ProductImage, Promotion, CompanyInfo, Customer, Sale, SaleItem, Installment, InstallmentPayment, Order, OrderItem, Expense, StockMovement, AuditLog, Supplier, PurchaseInvoice, PurchaseInvoiceItem, PurchaseInstallment, PurchaseInstallmentPayment, CreditNote, CreditNoteItem, CreditNoteInvoiceAllocation
 
 class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
@@ -439,12 +439,14 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
     total_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
     purchase_installments = PurchaseInstallmentSerializer(many=True, read_only=True)
+    credit_notes = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseInvoice
         fields = [
             'id', 'supplier', 'supplier_name', 'invoice_number', 'payment_type', 'installment_count',
-            'purchase_date', 'notes', 'items', 'total_amount', 'remaining_amount', 'purchase_installments', 'created_at',
+            'purchase_date', 'notes', 'items', 'total_amount', 'remaining_amount', 'purchase_installments',
+            'credit_notes', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -453,6 +455,12 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
 
     def get_remaining_amount(self, obj):
         return str(obj.remaining_amount)
+
+    def get_credit_notes(self, obj):
+        direct = list(obj.credit_notes.all())
+        multi = list(obj.credit_note_allocations.all())
+        combined = sorted(direct + multi, key=lambda cn: (cn.issue_date, cn.created_at), reverse=True)
+        return CreditNoteSerializer(combined, many=True, context={'purchase_invoice_id': obj.id}).data
 
     def validate_items(self, items):
         if not items:
@@ -465,3 +473,143 @@ class PurchaseInvoiceSerializer(serializers.ModelSerializer):
         for item_data in items_data:
             PurchaseInvoiceItem.objects.create(purchase_invoice=invoice, **item_data)
         return invoice
+
+
+class CreditNoteItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    subtotal = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditNoteItem
+        fields = ['id', 'product', 'product_name', 'quantity', 'unit_cost', 'subtotal']
+
+    def get_subtotal(self, obj):
+        return str(obj.subtotal)
+
+
+class CreditNoteInvoiceAllocationSerializer(serializers.ModelSerializer):
+    invoice_number = serializers.CharField(source='purchase_invoice.invoice_number', read_only=True)
+
+    class Meta:
+        model = CreditNoteInvoiceAllocation
+        fields = ['id', 'purchase_invoice', 'invoice_number', 'allocated_amount']
+
+
+class CreditNoteSerializer(serializers.ModelSerializer):
+    items = CreditNoteItemSerializer(many=True, required=False)
+    invoice_ids = serializers.PrimaryKeyRelatedField(
+        queryset=PurchaseInvoice.objects.all(), many=True, required=False, write_only=True,
+    )
+    invoice_allocations = CreditNoteInvoiceAllocationSerializer(many=True, read_only=True)
+    supplier_name = serializers.SerializerMethodField()
+    invoice_number = serializers.CharField(source='purchase_invoice.invoice_number', read_only=True)
+    total_amount = serializers.SerializerMethodField()
+    allocated_amount_for_invoice = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditNote
+        fields = [
+            'id', 'supplier', 'purchase_invoice', 'invoice_ids', 'invoice_allocations',
+            'supplier_name', 'invoice_number', 'credit_note_number',
+            'issue_date', 'reason', 'notes', 'items', 'manual_amount', 'total_amount',
+            'allocated_amount_for_invoice', 'created_at',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def get_supplier_name(self, obj):
+        if obj.purchase_invoice_id:
+            return obj.purchase_invoice.supplier.name
+        return obj.supplier.name if obj.supplier_id else None
+
+    def get_total_amount(self, obj):
+        return str(obj.total_amount)
+
+    def get_allocated_amount_for_invoice(self, obj):
+        invoice_id = self.context.get('purchase_invoice_id')
+        if not invoice_id or obj.purchase_invoice_id:
+            return None
+        allocation = next(
+            (a for a in obj.invoice_allocations.all() if a.purchase_invoice_id == invoice_id), None
+        )
+        return str(allocation.allocated_amount) if allocation else None
+
+    def validate(self, data):
+        manual_amount = data.get('manual_amount')
+        items = data.get('items') or []
+        invoice = data.get('purchase_invoice')
+        invoice_ids = data.get('invoice_ids') or []
+        supplier = data.get('supplier')
+
+        if invoice and invoice_ids:
+            raise serializers.ValidationError(
+                'Elegí una sola factura, o varias facturas del mismo proveedor, no ambas cosas.'
+            )
+
+        if invoice_ids:
+            if manual_amount is None:
+                raise serializers.ValidationError(
+                    'Una nota de crédito sobre varias facturas debe tener un monto manual (es un descuento, sin devolución de productos).'
+                )
+            if not supplier:
+                raise serializers.ValidationError('Debés indicar el proveedor cuando elegís varias facturas.')
+            if len(invoice_ids) < 2:
+                raise serializers.ValidationError('Elegí al menos dos facturas, o usá el modo de una sola factura.')
+            for inv in invoice_ids:
+                if inv.supplier_id != supplier.id:
+                    raise serializers.ValidationError(
+                        f'La factura "{inv.invoice_number or inv.id}" no pertenece al proveedor elegido.'
+                    )
+            return data
+
+        if not invoice:
+            raise serializers.ValidationError('Debés elegir una factura de compra.')
+
+        if manual_amount is not None:
+            if manual_amount <= 0:
+                raise serializers.ValidationError('El monto manual debe ser mayor a cero.')
+            return data
+
+        if not items:
+            raise serializers.ValidationError(
+                'La nota de crédito debe tener al menos un producto, o bien un monto manual si es solo un descuento.'
+            )
+
+        purchased_qty = {}
+        for it in invoice.items.all():
+            purchased_qty[it.product_id] = purchased_qty.get(it.product_id, 0) + it.quantity
+        for item_data in items:
+            product = item_data['product']
+            if product.id not in purchased_qty:
+                raise serializers.ValidationError(
+                    f'El producto "{product.name}" no pertenece a esta factura de compra.'
+                )
+            if item_data['quantity'] > purchased_qty[product.id]:
+                raise serializers.ValidationError(
+                    f'La cantidad a devolver de "{product.name}" supera la cantidad comprada en esta factura.'
+                )
+        return data
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items', [])
+        invoice_ids = validated_data.pop('invoice_ids', [])
+        credit_note = CreditNote.objects.create(**validated_data)
+        for item_data in items_data:
+            CreditNoteItem.objects.create(credit_note=credit_note, **item_data)
+
+        if invoice_ids:
+            total = credit_note.manual_amount
+            balances = [(inv, inv.remaining_amount) for inv in invoice_ids]
+            total_balance = sum((b for _, b in balances), Decimal('0'))
+            allocated_so_far = Decimal('0')
+            for idx, (inv, balance) in enumerate(balances):
+                if idx == len(balances) - 1:
+                    amount = total - allocated_so_far
+                elif total_balance > 0:
+                    amount = (total * balance / total_balance).quantize(Decimal('0.01'))
+                else:
+                    amount = (total / len(balances)).quantize(Decimal('0.01'))
+                allocated_so_far += amount
+                CreditNoteInvoiceAllocation.objects.create(
+                    credit_note=credit_note, purchase_invoice=inv, allocated_amount=amount,
+                )
+        return credit_note
