@@ -879,7 +879,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
                         Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
                       </div>
                     )}
-                    {inst.status !== 'PAID' && inst.payments?.length > 0 && (
+                    {inst.payments?.length > 0 && (
                       <ul className="text-xs text-gray-400 mt-0.5 space-y-0.5">
                         {inst.payments.map((p) => (
                           <li key={p.id} className="flex items-center justify-end gap-1.5">
