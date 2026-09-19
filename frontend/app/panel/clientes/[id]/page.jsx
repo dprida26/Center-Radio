@@ -26,6 +26,7 @@ export default function ClienteDetallePage() {
   const [confirmTarget, setConfirmTarget] = useState(null)
   const [revertTarget, setRevertTarget] = useState(null)
   const [lateFeeTarget, setLateFeeTarget] = useState(null)
+  const [paymentInfoModal, setPaymentInfoModal] = useState(null)
   const [editing, setEditing] = useState(false)
   const [locationCopied, setLocationCopied] = useState(false)
 
@@ -58,13 +59,27 @@ export default function ClienteDetallePage() {
     setBusyId(confirmTarget.id)
     try {
       const result = await installmentService.markPaid(confirmTarget.id, amount, paymentDate, lateFeeAmount)
-      load()
       setConfirmTarget(null)
       if (result.overpaid_unapplied) {
-        alert(`Se registró el pago. Sobraron Gs. ${Math.round(parseFloat(result.overpaid_unapplied)).toLocaleString('es-PY')} que no se pudieron aplicar porque ya no quedan cuotas pendientes en esta venta.`)
+        setPaymentInfoModal({
+          type: 'unapplied',
+          amount: result.overpaid_unapplied,
+        })
+      } else if (result.crossed_to_other_sale) {
+        const otherSale = sales.find((s) => s.id === result.crossed_to_other_sale)
+        setPaymentInfoModal({
+          type: 'crossed',
+          saleRef: otherSale ? `la venta del ${otherSale.sale_date}` : `la venta #${result.crossed_to_other_sale}`,
+          count: result.affected_installments.length - 1,
+          amount: result.crossed_amount,
+        })
       } else if (result.affected_installments?.length > 1) {
-        alert(`Pago registrado. El excedente se aplicó automáticamente a ${result.affected_installments.length - 1} cuota(s) siguiente(s).`)
+        setPaymentInfoModal({
+          type: 'rolled',
+          count: result.affected_installments.length - 1,
+        })
       }
+      load()
     } catch (err) {
       alert(err?.response?.data?.error || 'No se pudo registrar el pago.')
     } finally {
@@ -261,6 +276,13 @@ export default function ClienteDetallePage() {
           busy={busyId === lateFeeTarget.id}
           onCancel={() => setLateFeeTarget(null)}
           onSave={handleSaveLateFee}
+        />
+      )}
+
+      {paymentInfoModal && (
+        <PaymentInfoModal
+          info={paymentInfoModal}
+          onClose={() => setPaymentInfoModal(null)}
         />
       )}
 
@@ -692,6 +714,42 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
             {busy ? 'Guardando...' : 'Confirmar pago'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function PaymentInfoModal({ info, onClose }) {
+  const messages = {
+    unapplied: (
+      <>Se registró el pago. Sobraron <strong>{formatGs(info.amount)}</strong> que no se pudieron aplicar porque ya no quedan cuotas pendientes del cliente.</>
+    ),
+    crossed: (
+      <>Pago registrado. El excedente de <strong>{formatGs(info.amount)}</strong> cubrió el resto de esta venta y se aplicó además a <strong>{info.saleRef}</strong> ({info.count} cuota{info.count === 1 ? '' : 's'} en total).</>
+    ),
+    rolled: (
+      <>Pago registrado. El excedente se aplicó automáticamente a {info.count} cuota{info.count === 1 ? '' : 's'} siguiente{info.count === 1 ? '' : 's'}.</>
+    ),
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Pago registrado</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">{messages[info.type]}</p>
+
+        <button
+          onClick={onClose}
+          className="w-full px-4 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+        >
+          Entendido
+        </button>
       </div>
     </div>
   )

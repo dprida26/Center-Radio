@@ -553,7 +553,11 @@ class Installment(models.Model):
         Registra un abono contra esta cuota. Si el monto supera el saldo
         pendiente, el excedente se aplica automáticamente como pago
         adelantado a la siguiente cuota pendiente de la misma venta
-        (respetando el orden de pago consecutivo).
+        (respetando el orden de pago consecutivo). Si además cubre todas
+        las cuotas pendientes de esa venta, el sobrante continúa aplicándose
+        a la siguiente cuota pendiente más antigua de OTRA venta del mismo
+        cliente (por si el cliente tiene varias deudas activas), siempre con
+        la misma fecha de pago declarada al inicio.
 
         Si se pasa late_fee_amount (>0), se registra además un
         InstallmentPayment marcado is_late_fee=True por ese monto exacto,
@@ -563,8 +567,8 @@ class Installment(models.Model):
 
         Devuelve (cuotas_afectadas, sobrante_sin_aplicar): la lista de cuotas
         tocadas (esta y, si aplica, las siguientes cubiertas con el
-        excedente) y el monto que no se pudo aplicar porque ya no quedan
-        cuotas pendientes en la venta (venta ya saldada por completo).
+        excedente, incluso de otras ventas) y el monto que no se pudo
+        aplicar porque ya no quedan cuotas pendientes del cliente.
         """
         from django.utils import timezone
         payment_date = payment_date or timezone.now().date()
@@ -597,7 +601,11 @@ class Installment(models.Model):
                 amount=applied,
                 payment_date=payment_date,
                 created_by=created_by,
-                note='' if current is self else f'Excedente aplicado de la cuota {self.number}',
+                note='' if current is self else (
+                    f'Excedente aplicado de la cuota {self.number}'
+                    if current.sale_id == self.sale_id
+                    else f'Excedente aplicado de la venta #{self.sale_id}, cuota {self.number}'
+                ),
             )
             remaining_to_apply -= applied
             current._prefetched_objects_cache = {}
@@ -609,9 +617,21 @@ class Installment(models.Model):
                 current.save()
 
                 if remaining_to_apply > 0:
-                    current = Installment.objects.filter(
+                    next_installment = Installment.objects.filter(
                         sale=current.sale, number__gt=current.number,
                     ).exclude(status=self.STATUS_PAID).order_by('number').first()
+
+                    if next_installment is None:
+                        # Ya no quedan cuotas pendientes en esta venta: buscar
+                        # la cuota pendiente más antigua de otra venta activa
+                        # del mismo cliente para seguir aplicando el sobrante.
+                        next_installment = Installment.objects.filter(
+                            sale__customer=current.sale.customer,
+                        ).exclude(
+                            sale=current.sale,
+                        ).exclude(status=self.STATUS_PAID).order_by('due_date', 'sale_id', 'number').first()
+
+                    current = next_installment
                     if current:
                         affected.append(current)
                     continue

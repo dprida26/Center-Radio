@@ -1087,10 +1087,18 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         log_action(request.user, AuditLog.ACTION_CUSTOM, installment, description=desc)
 
         serializer = self.get_serializer(installment)
+        other_sale_installments = [a for a in affected[1:] if a.sale_id != installment.sale_id]
+        crossed_to_other_sale = other_sale_installments[0].sale_id if other_sale_installments else None
+        crossed_amount = (
+            sum((a.paid_so_far for a in other_sale_installments), Decimal('0'))
+            if other_sale_installments else None
+        )
         return Response({
             **serializer.data,
             'affected_installments': [a.id for a in affected],
             'overpaid_unapplied': str(sobrante) if sobrante > 0 else None,
+            'crossed_amount': str(crossed_amount) if crossed_amount is not None else None,
+            'crossed_to_other_sale': crossed_to_other_sale,
         })
 
     @action(detail=True, methods=['post'])
