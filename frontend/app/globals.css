@@ -49,10 +49,22 @@ body {
     top: 0;
     left: 0;
     width: 58mm;
-    padding: 2mm;
+    max-width: 58mm;
+    box-sizing: border-box;
+    padding: 1mm 1.5mm;
     font-family: 'Courier New', monospace;
     font-size: 10px;
+    font-weight: bold;
     line-height: 1.4;
     color: #000;
+    text-align: center;
+  }
+
+  .ticket-receipt * {
+    max-width: 100%;
+    font-weight: bold;
+    text-align: center;
+    box-sizing: border-box;
+    word-break: break-word;
   }
 }
