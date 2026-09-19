@@ -13,6 +13,16 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
+function formatInvoiceNumber(value) {
+  const digits = value.replace(/\D/g, '')
+  const part1 = digits.slice(0, 3)
+  const part2 = digits.slice(3, 6)
+  const part3 = digits.slice(6)
+  if (digits.length <= 3) return part1
+  if (digits.length <= 6) return `${part1}-${part2}`
+  return `${part1}-${part2}-${part3}`
+}
+
 export default function NuevaCompraPage() {
   const router = useRouter()
 
@@ -26,6 +36,7 @@ export default function NuevaCompraPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const total = items.reduce((sum, it) => sum + (parseFloat(it.unit_cost) || 0) * (parseInt(it.quantity) || 0), 0)
   const perInstallment = paymentType === 'INSTALLMENTS' && installmentCount ? total / installmentCount : null
@@ -96,8 +107,10 @@ export default function NuevaCompraPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">N° de Factura (opcional)</label>
             <input
               type="text"
+              inputMode="numeric"
+              placeholder="000-000-0000000"
               value={invoiceNumber}
-              onChange={(e) => setInvoiceNumber(e.target.value)}
+              onChange={(e) => setInvoiceNumber(formatInvoiceNumber(e.target.value))}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -234,13 +247,98 @@ export default function NuevaCompraPage() {
         )}
 
         <button
-          onClick={handleSubmit}
+          onClick={() => setShowConfirm(true)}
           disabled={!canSubmit || submitting}
           className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
           {submitting ? 'Guardando...' : 'Confirmar Compra'}
         </button>
+      </div>
+
+      {showConfirm && (
+        <ConfirmPurchaseModal
+          supplier={supplier}
+          paymentType={paymentType}
+          installmentCount={installmentCount}
+          perInstallment={perInstallment}
+          total={total}
+          submitting={submitting}
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={async () => {
+            await handleSubmit()
+            setShowConfirm(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ConfirmPurchaseModal({ supplier, paymentType, installmentCount, perInstallment, total, submitting, onCancel, onConfirm }) {
+  const isCash = paymentType === 'CASH'
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg text-gray-900">Confirmar compra</h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Proveedor</span>
+            <span className="font-medium text-gray-900">{supplier?.name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Forma de pago</span>
+            <span className={`font-semibold ${isCash ? 'text-blue-600' : 'text-amber-600'}`}>
+              {isCash ? 'Contado' : 'Cuotas'}
+            </span>
+          </div>
+          {!isCash && (
+            <>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cantidad de cuotas</span>
+                <span className="font-medium text-gray-900">{installmentCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Monto por cuota</span>
+                <span className="font-medium text-gray-900">{formatGs(perInstallment)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex justify-between pt-2 border-t border-gray-100">
+            <span className="font-semibold text-gray-900">Total</span>
+            <span className="font-bold text-gray-900">{formatGs(total)}</span>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-500">
+          {isCash
+            ? '¿Confirmás registrar esta compra al contado? Se generará un gasto de mercadería inmediato.'
+            : `¿Confirmás registrar esta compra a ${installmentCount} cuotas?`}
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            {submitting ? 'Guardando...' : 'Confirmar'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Check, Loader2, Trash2, Plus } from 'lucide-react'
+import { Search, Check, Loader2, Trash2, Plus, X } from 'lucide-react'
 import { customerService, productService, saleService } from '@/services/api'
 
 function formatGs(value) {
@@ -31,6 +31,7 @@ export default function NuevaVentaPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const subtotal = items.reduce((sum, it) => sum + (parseFloat(it.unit_price) || 0) * (parseInt(it.quantity) || 0), 0)
   const total = paymentType === 'INSTALLMENTS' ? subtotal * (1 + interestRate / 100) : subtotal
@@ -376,13 +377,105 @@ export default function NuevaVentaPage() {
         )}
 
         <button
-          onClick={handleSubmit}
+          onClick={() => setShowConfirm(true)}
           disabled={!canSubmit || submitting}
           className="w-full flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
           {submitting ? 'Guardando...' : 'Confirmar Venta'}
         </button>
+      </div>
+
+      {showConfirm && (
+        <ConfirmSaleModal
+          customer={customer}
+          paymentType={paymentType}
+          installmentCount={installmentCount}
+          perInstallment={perInstallment}
+          downPayment={downPayment}
+          total={paymentType === 'INSTALLMENTS' ? installmentsTotal + (parseFloat(downPayment) || 0) : total}
+          submitting={submitting}
+          onCancel={() => setShowConfirm(false)}
+          onConfirm={async () => {
+            await handleSubmit()
+            setShowConfirm(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ConfirmSaleModal({ customer, paymentType, installmentCount, perInstallment, downPayment, total, submitting, onCancel, onConfirm }) {
+  const isCash = paymentType === 'CASH'
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-lg text-gray-900">Confirmar venta</h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Cliente</span>
+            <span className="font-medium text-gray-900">{customer?.full_name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Forma de pago</span>
+            <span className={`font-semibold ${isCash ? 'text-blue-600' : 'text-amber-600'}`}>
+              {isCash ? 'Contado' : 'Cuotas'}
+            </span>
+          </div>
+          {!isCash && (
+            <>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Cantidad de cuotas</span>
+                <span className="font-medium text-gray-900">{installmentCount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Monto por cuota</span>
+                <span className="font-medium text-gray-900">{formatGs(perInstallment)}</span>
+              </div>
+              {parseFloat(downPayment) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Entrega inicial</span>
+                  <span className="font-medium text-gray-900">{formatGs(downPayment)}</span>
+                </div>
+              )}
+            </>
+          )}
+          <div className="flex justify-between pt-2 border-t border-gray-100">
+            <span className="font-semibold text-gray-900">Total</span>
+            <span className="font-bold text-gray-900">{formatGs(total)}</span>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-500">
+          {isCash
+            ? '¿Confirmás registrar esta venta al contado?'
+            : `¿Confirmás registrar esta venta a ${installmentCount} cuotas?`}
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            {submitting ? 'Guardando...' : 'Confirmar'}
+          </button>
+        </div>
       </div>
     </div>
   )
