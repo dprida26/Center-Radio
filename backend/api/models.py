@@ -325,7 +325,7 @@ class Sale(models.Model):
         pending = self.installments.exclude(status=Installment.STATUS_PAID)
         return sum((i.remaining_amount for i in pending), Decimal('0'))
 
-    def generate_installments(self):
+    def generate_installments(self, custom_installment_amount=None):
         from dateutil.relativedelta import relativedelta
         import calendar
 
@@ -337,13 +337,23 @@ class Sale(models.Model):
         total = self.total_amount - self.down_payment
         if total < 0:
             total = Decimal('0')
-        base_amount = (total / self.installment_count).quantize(Decimal('0.01'))
-        remainder = total - (base_amount * self.installment_count)
+
+        if custom_installment_amount:
+            # Monto de cuota definido manualmente: cada cuota vale exactamente
+            # ese monto, sin ajustar contra el saldo financiado. El total en
+            # cuotas puede terminar siendo mayor o menor al saldo financiado
+            # calculado con la tasa de interés (decisión comercial del
+            # vendedor, no un error a corregir).
+            base_amount = Decimal(str(custom_installment_amount)).quantize(Decimal('0.01'))
+            remainder = Decimal('0')
+        else:
+            base_amount = (total / self.installment_count).quantize(Decimal('0.01'))
+            remainder = total - (base_amount * self.installment_count)
 
         for i in range(1, self.installment_count + 1):
             amount = base_amount
             if i == self.installment_count:
-                amount += remainder
+                amount = base_amount + remainder
             due_date = self.sale_date + relativedelta(months=i)
             if self.payment_day:
                 last_day = calendar.monthrange(due_date.year, due_date.month)[1]

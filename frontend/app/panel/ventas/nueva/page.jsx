@@ -26,6 +26,8 @@ export default function NuevaVentaPage() {
   const [paymentDay, setPaymentDay] = useState('')
   const [lateFeeRate, setLateFeeRate] = useState(0)
   const [items, setItems] = useState([])
+  const [useCustomInstallmentAmount, setUseCustomInstallmentAmount] = useState(false)
+  const [customInstallmentAmount, setCustomInstallmentAmount] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
@@ -33,7 +35,14 @@ export default function NuevaVentaPage() {
   const subtotal = items.reduce((sum, it) => sum + (parseFloat(it.unit_price) || 0) * (parseInt(it.quantity) || 0), 0)
   const total = paymentType === 'INSTALLMENTS' ? subtotal * (1 + interestRate / 100) : subtotal
   const financedAmount = paymentType === 'INSTALLMENTS' ? Math.max(0, total - (parseFloat(downPayment) || 0)) : total
-  const perInstallment = paymentType === 'INSTALLMENTS' && installmentCount ? financedAmount / installmentCount : null
+  const suggestedPerInstallment = paymentType === 'INSTALLMENTS' && installmentCount ? financedAmount / installmentCount : null
+  const isCustomAmountActive = useCustomInstallmentAmount && parseFloat(customInstallmentAmount) > 0
+  const perInstallment = isCustomAmountActive ? parseFloat(customInstallmentAmount) : suggestedPerInstallment
+  // Con monto manual, cada cuota vale exactamente ese monto (no se ajusta
+  // contra financedAmount): el total en cuotas puede terminar siendo mayor
+  // o menor al saldo financiado calculado con la tasa de interés, y eso es
+  // una decisión comercial válida del vendedor, no un error.
+  const installmentsTotal = isCustomAmountActive ? perInstallment * installmentCount : financedAmount
   const downPaymentExceedsTotal = paymentType === 'INSTALLMENTS' && (parseFloat(downPayment) || 0) > total
 
   const addItem = (product) => {
@@ -51,11 +60,15 @@ export default function NuevaVentaPage() {
     setItems((prev) => prev.filter((it) => it.product.id !== productId))
   }
 
+  const customAmountInvalid =
+    paymentType === 'INSTALLMENTS' && useCustomInstallmentAmount && !(parseFloat(customInstallmentAmount) > 0)
+
   const canSubmit =
     customer &&
     items.length > 0 &&
     items.every((it) => it.quantity > 0 && it.quantity <= it.product.stock && it.unit_price >= 0) &&
-    !downPaymentExceedsTotal
+    !downPaymentExceedsTotal &&
+    !customAmountInvalid
 
   const handleSubmit = async () => {
     setSubmitting(true)
@@ -76,6 +89,9 @@ export default function NuevaVentaPage() {
           quantity: Number(it.quantity),
           unit_price: it.unit_price,
         })),
+      }
+      if (paymentType === 'INSTALLMENTS' && useCustomInstallmentAmount && parseFloat(customInstallmentAmount) > 0) {
+        payload.custom_installment_amount = parseFloat(customInstallmentAmount)
       }
       await saleService.create(payload)
       router.push(`/panel/clientes/${customer.id}`)
@@ -272,6 +288,44 @@ export default function NuevaVentaPage() {
               </div>
             </div>
           )}
+
+          {paymentType === 'INSTALLMENTS' && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useCustomInstallmentAmount}
+                  onChange={(e) => setUseCustomInstallmentAmount(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Definir monto de la cuota manualmente
+              </label>
+              {useCustomInstallmentAmount ? (
+                <div className="mt-2">
+                  <input
+                    type="number"
+                    min={1}
+                    step="1"
+                    placeholder={suggestedPerInstallment ? Math.round(suggestedPerInstallment).toString() : ''}
+                    value={customInstallmentAmount}
+                    onChange={(e) => setCustomInstallmentAmount(e.target.value)}
+                    className={`w-full max-w-xs px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      customAmountInvalid ? 'border-red-300' : 'border-gray-200'
+                    }`}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Monto sugerido: {formatGs(suggestedPerInstallment)}. Cada una de las {installmentCount} cuotas
+                    tendrá este monto exacto, aunque el total en cuotas difiera del saldo financiado.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">
+                  Si no se activa, el monto de cada cuota se calcula dividiendo el saldo financiado entre la
+                  cantidad de cuotas.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div>
@@ -301,9 +355,17 @@ export default function NuevaVentaPage() {
               <span>{formatGs(perInstallment)}</span>
             </div>
           )}
+          {isCustomAmountActive && Math.abs(installmentsTotal - financedAmount) >= 1 && (
+            <div className="flex justify-between text-sm text-gray-600">
+              <span>{installmentsTotal > financedAmount ? 'Recargo vs. saldo financiado' : 'Descuento vs. saldo financiado'}</span>
+              <span className={installmentsTotal > financedAmount ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
+                {installmentsTotal > financedAmount ? '+' : ''}{formatGs(installmentsTotal - financedAmount)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between font-bold text-gray-900 text-base pt-1 border-t border-blue-200 mt-2">
             <span>Total</span>
-            <span>{formatGs(total)}</span>
+            <span>{formatGs(paymentType === 'INSTALLMENTS' ? installmentsTotal + (parseFloat(downPayment) || 0) : total)}</span>
           </div>
         </div>
 

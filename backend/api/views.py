@@ -599,10 +599,11 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
     search_fields = ['customer__full_name', 'customer__document_number', 'items__product__name']
 
     def perform_create(self, serializer):
+        custom_amount = self.request.data.get('custom_installment_amount')
         sale = serializer.save()
         for item in sale.items.select_related('product').all():
             item.product.register_sale_exit(item.quantity, reason=f'Venta #{sale.id}')
-        sale.generate_installments()
+        sale.generate_installments(custom_installment_amount=custom_amount or None)
         log_action(self.request.user, AuditLog.ACTION_CREATE, sale)
 
     def _ventas_range(self, request):
