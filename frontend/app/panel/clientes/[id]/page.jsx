@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2, Pencil, Printer, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
 import Link from 'next/link'
 import { customerService, installmentService } from '@/services/api'
+import { MoneyInput } from '@/components/panel/MoneyInput'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -614,12 +615,9 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
         </div>
 
         <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Monto a registrar</label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
+        <MoneyInput
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={setAmount}
           autoFocus
           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
         />
