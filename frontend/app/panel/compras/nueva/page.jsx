@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Check, Loader2, Trash2, Plus, X, PackagePlus } from 'lucide-react'
 import { supplierService, productService, categoryService, purchaseInvoiceService } from '@/services/api'
+import { MoneyInput } from '@/components/panel/MoneyInput'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -155,11 +156,9 @@ export default function NuevaCompraPage() {
                       />
                     </td>
                     <td className="py-2">
-                      <input
-                        type="number"
-                        min={0}
+                      <MoneyInput
                         value={it.unit_cost}
-                        onChange={(e) => updateItem(it.product.id, 'unit_cost', e.target.value)}
+                        onChange={(digits) => updateItem(it.product.id, 'unit_cost', digits)}
                         className="w-32 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </td>
@@ -615,22 +614,18 @@ function CreateProductModal({ supplier, initialName, onCancel, onCreated }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Precio de Venta</label>
-              <input
-                type="number"
-                min={0}
+              <MoneyInput
                 value={form.price}
-                onChange={handleChange('price')}
+                onChange={(digits) => setForm((f) => ({ ...f, price: digits }))}
                 required
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Precio de Costo</label>
-              <input
-                type="number"
-                min={0}
+              <MoneyInput
                 value={form.cost_price}
-                onChange={handleChange('cost_price')}
+                onChange={(digits) => setForm((f) => ({ ...f, cost_price: digits }))}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>

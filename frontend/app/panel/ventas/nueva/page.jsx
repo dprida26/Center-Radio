@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Check, Loader2, Trash2, Plus, X } from 'lucide-react'
 import { customerService, productService, saleService } from '@/services/api'
+import { MoneyInput } from '@/components/panel/MoneyInput'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -171,11 +172,9 @@ export default function NuevaVentaPage() {
                           />
                         </td>
                         <td className="py-2">
-                          <input
-                            type="number"
-                            min={0}
+                          <MoneyInput
                             value={it.unit_price}
-                            onChange={(e) => updateItem(it.product.id, 'unit_price', e.target.value)}
+                            onChange={(digits) => updateItem(it.product.id, 'unit_price', digits)}
                             className="w-32 px-2 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           />
                         </td>
@@ -244,12 +243,9 @@ export default function NuevaVentaPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Entrega inicial (Gs.)</label>
-                <input
-                  type="number"
-                  min={0}
-                  step="1"
+                <MoneyInput
                   value={downPayment}
-                  onChange={(e) => setDownPayment(e.target.value)}
+                  onChange={setDownPayment}
                   className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                     downPaymentExceedsTotal ? 'border-red-300' : 'border-gray-200'
                   }`}
@@ -303,13 +299,10 @@ export default function NuevaVentaPage() {
               </label>
               {useCustomInstallmentAmount ? (
                 <div className="mt-2">
-                  <input
-                    type="number"
-                    min={1}
-                    step="1"
-                    placeholder={suggestedPerInstallment ? Math.round(suggestedPerInstallment).toString() : ''}
+                  <MoneyInput
+                    placeholder={suggestedPerInstallment ? Math.round(suggestedPerInstallment).toLocaleString('es-PY') : ''}
                     value={customInstallmentAmount}
-                    onChange={(e) => setCustomInstallmentAmount(e.target.value)}
+                    onChange={setCustomInstallmentAmount}
                     className={`w-full max-w-xs px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       customAmountInvalid ? 'border-red-300' : 'border-gray-200'
                     }`}
