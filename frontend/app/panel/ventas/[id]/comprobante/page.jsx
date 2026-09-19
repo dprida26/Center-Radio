@@ -10,6 +10,7 @@ import { shareReceiptAsImage } from '@/lib/shareReceipt'
 import { FaWhatsapp } from 'react-icons/fa'
 import TicketReceiptItems from '@/components/panel/TicketReceiptItems'
 import TicketReceipt from '@/components/panel/TicketReceipt'
+import { BusinessNameHeader } from '@/components/panel/BusinessNameHeader'
 
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
@@ -142,7 +143,7 @@ function ComprobanteVentaInner() {
               <img src={info.logo} alt={info.name} className="w-14 h-14 object-contain" />
             )}
             <div>
-              <p className="font-bold text-gray-900 text-lg">{info?.legal_name || info?.name}</p>
+              <BusinessNameHeader info={info} />
               {info?.ruc && <p className="text-xs text-gray-500">RUC: {info.ruc}</p>}
               {info?.address && <p className="text-xs text-gray-500">{info.address}</p>}
               {info?.phone && <p className="text-xs text-gray-500">Tel: {info.phone}</p>}
@@ -258,7 +259,7 @@ function ComprobanteEntregaInicial({ info, sale, receiptRef, handleShare, sharin
               <img src={info.logo} alt={info.name} className="w-14 h-14 object-contain" />
             )}
             <div>
-              <p className="font-bold text-gray-900 text-lg">{info?.legal_name || info?.name}</p>
+              <BusinessNameHeader info={info} />
               {info?.ruc && <p className="text-xs text-gray-500">RUC: {info.ruc}</p>}
               {info?.address && <p className="text-xs text-gray-500">{info.address}</p>}
               {info?.phone && <p className="text-xs text-gray-500">Tel: {info.phone}</p>}
@@ -297,7 +298,7 @@ function ComprobanteEntregaInicial({ info, sale, receiptRef, handleShare, sharin
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 text-center text-sm pt-10">
+        <div className="grid grid-cols-2 gap-8 text-center text-sm pt-24">
           <div>
             <div className="border-t border-gray-400 pt-2">Firma del Cliente</div>
           </div>

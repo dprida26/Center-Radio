@@ -1,3 +1,5 @@
+import { splitBusinessName } from '@/lib/businessName'
+
 function formatGs(value) {
   return `Gs. ${Math.round(parseFloat(value) || 0).toLocaleString('es-PY')}`
 }
@@ -39,10 +41,12 @@ export default function TicketReceipt({
   paymentsHistory,
   signatureLabel,
 }) {
+  const { main, subtitle } = splitBusinessName(info?.legal_name || info?.name)
   return (
     <div className="ticket-receipt">
       <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
-        <p style={{ fontWeight: 'bold' }}>{info?.legal_name || info?.name}</p>
+        <p style={{ fontWeight: 'bold', fontSize: '15px' }}>{main}</p>
+        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '11px' }}>{subtitle}</p>}
         {info?.ruc && <p>RUC: {info.ruc}</p>}
         {info?.address && <p>{info.address}</p>}
         {info?.phone && <p>Tel: {info.phone}</p>}
@@ -97,7 +101,7 @@ export default function TicketReceipt({
 
       <div style={{ borderTop: '1px dashed #000', margin: '3mm 0 2mm' }} />
 
-      <p style={{ textAlign: 'center', marginTop: '6mm' }}>_____________________</p>
+      <p style={{ textAlign: 'center', marginTop: '14mm' }}>_____________________</p>
       <p style={{ textAlign: 'center' }}>{signatureLabel}</p>
 
       <p style={{ textAlign: 'center', marginTop: '3mm', fontSize: '9px' }}>
