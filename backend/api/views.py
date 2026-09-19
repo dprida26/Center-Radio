@@ -978,13 +978,17 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         ).select_related('installment__sale__customer')
         for p in payments:
             sale = p.installment.sale
+            concept = (
+                f'Mora cuota {p.installment.number}/{sale.installment_count}' if p.is_late_fee
+                else f'Abono cuota {p.installment.number}/{sale.installment_count}'
+            )
             data.append({
                 'date': p.payment_date.strftime('%d/%m/%Y'),
                 'sort_date': p.payment_date.isoformat(),
                 'customer_id': sale.customer_id,
                 'customer_name': sale.customer.full_name,
                 'document_number': sale.customer.document_number,
-                'concept': f'Abono cuota {p.installment.number}/{sale.installment_count}',
+                'concept': concept,
                 'amount': to_number(p.amount),
             })
 
@@ -1062,9 +1066,14 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         raw_amount = request.data.get('paid_amount')
         amount = Decimal(str(raw_amount)) if raw_amount not in (None, '') else installment.remaining_amount or installment.amount
         payment_date = request.data.get('payment_date') or None
+        raw_late_fee = request.data.get('late_fee_amount')
+        late_fee_amount = Decimal(str(raw_late_fee)) if raw_late_fee not in (None, '') else None
 
         try:
-            affected, sobrante = installment.register_payment(amount=amount, payment_date=payment_date, created_by=request.user)
+            affected, sobrante = installment.register_payment(
+                amount=amount, payment_date=payment_date, created_by=request.user,
+                late_fee_amount=late_fee_amount,
+            )
         except ValueError as e:
             return Response({'error': str(e)}, status=400)
 

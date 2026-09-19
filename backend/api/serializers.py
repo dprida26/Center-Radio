@@ -178,7 +178,7 @@ class InstallmentPaymentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = InstallmentPayment
-        fields = ['id', 'amount', 'payment_date', 'created_by_name', 'note', 'created_at']
+        fields = ['id', 'amount', 'payment_date', 'created_by_name', 'note', 'is_late_fee', 'created_at']
 
 
 class PurchaseInstallmentPaymentSerializer(serializers.ModelSerializer):
@@ -204,6 +204,7 @@ class InstallmentSerializer(serializers.ModelSerializer):
     paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     late_fee_amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     total_with_late_fee = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    late_fee_paid_so_far = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     payments = InstallmentPaymentSerializer(many=True, read_only=True)
 
     class Meta:
@@ -212,7 +213,8 @@ class InstallmentSerializer(serializers.ModelSerializer):
             'id', 'sale', 'number', 'amount', 'due_date', 'status', 'paid_date', 'paid_amount',
             'customer_name', 'customer_id', 'customer_document', 'customer_phone', 'product_name',
             'installment_count', 'sale_date', 'remaining_amount', 'paid_so_far',
-            'late_fee_amount', 'total_with_late_fee', 'late_fee_enabled', 'late_fee_override', 'payments',
+            'late_fee_amount', 'total_with_late_fee', 'late_fee_paid_so_far',
+            'late_fee_enabled', 'late_fee_override', 'payments',
         ]
         read_only_fields = ['id', 'sale', 'number', 'amount', 'due_date', 'late_fee_enabled', 'late_fee_override']
 

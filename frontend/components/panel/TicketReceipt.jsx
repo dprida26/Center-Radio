@@ -46,8 +46,8 @@ export default function TicketReceipt({
   return (
     <div className="ticket-receipt">
       <div style={{ textAlign: 'center', marginBottom: '1.5mm' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '13px' }}>{main}</p>
-        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '10px' }}>{subtitle}</p>}
+        <p style={{ fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase' }}>{main}</p>
+        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase' }}>{subtitle}</p>}
         {info?.ruc && <p style={{ fontSize: '8px' }}>RUC: {info.ruc}</p>}
         {info?.address && <p style={{ fontSize: '8px' }}>{info.address}</p>}
         {info?.phone && <p style={{ fontSize: '8px' }}>Tel: {info.phone}</p>}
@@ -75,11 +75,13 @@ export default function TicketReceipt({
 
       <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
 
-      {paymentsHistory?.length > 1 && (
+      {paymentsHistory?.length > 0 && (paymentsHistory.length > 1 || paymentsHistory.some((p) => p.is_late_fee)) && (
         <>
           <p style={{ fontWeight: 'bold' }}>Historial de abonos:</p>
           {paymentsHistory.map((p) => (
-            <p key={p.id}>{formatDate(p.payment_date)} — {formatGs(p.amount)}</p>
+            <p key={p.id}>
+              {p.is_late_fee ? 'Mora: ' : ''}{formatDate(p.payment_date)} — {formatGs(p.amount)}
+            </p>
           ))}
           <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
         </>

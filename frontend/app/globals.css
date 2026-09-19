@@ -48,8 +48,10 @@ body {
     position: absolute;
     top: 0;
     left: 0;
+    right: 0;
     width: 58mm;
     max-width: 58mm;
+    margin: 0 auto;
     box-sizing: border-box;
     padding: 1mm 1mm;
     font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;

@@ -53,11 +53,11 @@ export default function ClienteDetallePage() {
     load()
   }, [load])
 
-  const handleConfirmPayment = async (amount, paymentDate) => {
+  const handleConfirmPayment = async (amount, paymentDate, lateFeeAmount) => {
     if (!confirmTarget) return
     setBusyId(confirmTarget.id)
     try {
-      const result = await installmentService.markPaid(confirmTarget.id, amount, paymentDate)
+      const result = await installmentService.markPaid(confirmTarget.id, amount, paymentDate, lateFeeAmount)
       load()
       setConfirmTarget(null)
       if (result.overpaid_unapplied) {
@@ -581,13 +581,18 @@ function EditCustomerModal({ customer, onCancel, onSaved }) {
 
 function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
   const remaining = parseFloat(installment.remaining_amount ?? installment.amount)
+  const lateFee = parseFloat(installment.late_fee_amount) || 0
   const [amount, setAmount] = useState(String(Math.round(remaining)))
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [includeLateFee, setIncludeLateFee] = useState(lateFee > 0)
+  const [lateFeeAmount, setLateFeeAmount] = useState(lateFee > 0 ? String(Math.round(lateFee)) : '')
 
   const numericAmount = parseFloat(amount) || 0
+  const numericLateFee = includeLateFee ? (parseFloat(lateFeeAmount) || 0) : 0
   const diff = numericAmount - remaining
   const isPartial = numericAmount > 0 && numericAmount < remaining
   const isOverpaid = numericAmount > remaining
+  const totalToCharge = numericAmount + numericLateFee
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
@@ -630,6 +635,30 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3"
         />
 
+        {lateFee > 0 && (
+          <div className="border border-red-100 bg-red-50 rounded-lg p-3 mb-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-red-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeLateFee}
+                onChange={(e) => setIncludeLateFee(e.target.checked)}
+                className="rounded border-red-300 text-red-600 focus:ring-red-500"
+              />
+              Incluir mora en este pago
+            </label>
+            {includeLateFee && (
+              <MoneyInput
+                value={lateFeeAmount}
+                onChange={setLateFeeAmount}
+                className="w-full px-3 py-2 mt-2 border border-red-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+            )}
+            <p className="text-xs text-red-600 mt-1">
+              La mora se registra aparte y no se acumula con el saldo de la cuota ni pasa a la siguiente.
+            </p>
+          </div>
+        )}
+
         {isPartial && (
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
             Pago parcial: quedará un saldo de {formatGs(remaining - numericAmount)} pendiente en esta cuota.
@@ -638,6 +667,11 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
         {isOverpaid && (
           <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4">
             El excedente de {formatGs(diff)} se aplicará automáticamente a la siguiente cuota pendiente.
+          </p>
+        )}
+        {numericLateFee > 0 && (
+          <p className="text-xs text-gray-500 mb-4">
+            Total a cobrar: {formatGs(totalToCharge)} ({formatGs(numericAmount)} de cuota + {formatGs(numericLateFee)} de mora)
           </p>
         )}
 
@@ -650,7 +684,7 @@ function ConfirmPaymentModal({ installment, busy, onCancel, onConfirm }) {
             Cancelar
           </button>
           <button
-            onClick={() => onConfirm(numericAmount, paymentDate)}
+            onClick={() => onConfirm(numericAmount, paymentDate, numericLateFee)}
             disabled={busy || numericAmount <= 0}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors"
           >
@@ -871,7 +905,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
                   <td className="py-2">{inst.number}</td>
                   <td className="py-2">{inst.due_date}</td>
                   <td className="py-2 text-right">
-                    {formatGs(inst.amount)}
+                    {formatGs(parseFloat(inst.amount) + (parseFloat(inst.late_fee_paid_so_far) || 0))}
                     {inst.status !== 'PAID' && parseFloat(inst.paid_so_far) > 0 && (
                       <div className="text-xs text-amber-600 font-medium">
                         Abonado {formatGs(inst.paid_so_far)} · Saldo {formatGs(inst.remaining_amount)}
@@ -882,16 +916,19 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
                         {inst.payments.map((p) => (
                           <li key={p.id} className="flex items-center justify-end gap-1.5">
                             <span>
+                              {p.is_late_fee && <span className="text-red-600 font-semibold">Mora: </span>}
                               {formatGs(p.amount)} el {p.payment_date}
                               {p.created_by_name ? ` · ${p.created_by_name}` : ''}
                             </span>
-                            <Link
-                              href={`/panel/cuotas/${inst.id}/comprobante?pago=${p.id}`}
-                              className="text-blue-600 hover:text-blue-800 shrink-0"
-                              title="Ver e imprimir recibo de este abono"
-                            >
-                              <Printer size={12} />
-                            </Link>
+                            {!p.is_late_fee && (
+                              <Link
+                                href={`/panel/cuotas/${inst.id}/comprobante?pago=${p.id}`}
+                                className="text-blue-600 hover:text-blue-800 shrink-0"
+                                title="Ver e imprimir recibo de este abono"
+                              >
+                                <Printer size={12} />
+                              </Link>
+                            )}
                           </li>
                         ))}
                       </ul>

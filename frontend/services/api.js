@@ -384,10 +384,11 @@ export const installmentService = {
     const { data } = await api.get(`/installments/${id}/`)
     return data
   },
-  markPaid: async (id, paidAmount, paymentDate) => {
+  markPaid: async (id, paidAmount, paymentDate, lateFeeAmount) => {
     const { data } = await api.post(`/installments/${id}/mark_paid/`, {
       paid_amount: paidAmount,
       payment_date: paymentDate || undefined,
+      late_fee_amount: lateFeeAmount || undefined,
     })
     return data
   },

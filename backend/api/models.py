@@ -493,12 +493,22 @@ class Installment(models.Model):
 
     @property
     def paid_so_far(self):
+        # Excluye pagos de mora (is_late_fee=True): esos no son abono al
+        # capital de la cuota, son un cargo aparte que se cobra junto con
+        # ella pero no debe reducir su saldo pendiente.
         # Si payments ya viene precargado (prefetch_related), sumar en memoria
         # evita una query por cuota al listar muchas (N+1). Si no, cae al
         # aggregate normal (una sola cuota consultada de forma aislada).
         if 'payments' in getattr(self, '_prefetched_objects_cache', {}):
-            return sum((p.amount for p in self.payments.all()), Decimal('0'))
-        total = self.payments.aggregate(total=models.Sum('amount'))['total']
+            return sum((p.amount for p in self.payments.all() if not p.is_late_fee), Decimal('0'))
+        total = self.payments.filter(is_late_fee=False).aggregate(total=models.Sum('amount'))['total']
+        return total or Decimal('0')
+
+    @property
+    def late_fee_paid_so_far(self):
+        if 'payments' in getattr(self, '_prefetched_objects_cache', {}):
+            return sum((p.amount for p in self.payments.all() if p.is_late_fee), Decimal('0'))
+        total = self.payments.filter(is_late_fee=True).aggregate(total=models.Sum('amount'))['total']
         return total or Decimal('0')
 
     @property
@@ -538,12 +548,19 @@ class Installment(models.Model):
     def total_with_late_fee(self):
         return self.remaining_amount + self.late_fee_amount
 
-    def register_payment(self, amount, payment_date=None, created_by=None):
+    def register_payment(self, amount, payment_date=None, created_by=None, late_fee_amount=None):
         """
         Registra un abono contra esta cuota. Si el monto supera el saldo
         pendiente, el excedente se aplica automáticamente como pago
         adelantado a la siguiente cuota pendiente de la misma venta
         (respetando el orden de pago consecutivo).
+
+        Si se pasa late_fee_amount (>0), se registra además un
+        InstallmentPayment marcado is_late_fee=True por ese monto exacto,
+        SIEMPRE contra esta cuota: no se excede a la siguiente cuota ni
+        afecta remaining_amount/status (paid_so_far excluye estos pagos),
+        para no mezclar el cobro de mora con el capital de otra cuota.
+
         Devuelve (cuotas_afectadas, sobrante_sin_aplicar): la lista de cuotas
         tocadas (esta y, si aplica, las siguientes cubiertas con el
         excedente) y el monto que no se pudo aplicar porque ya no quedan
@@ -554,6 +571,19 @@ class Installment(models.Model):
         amount = Decimal(str(amount))
         if amount <= 0:
             raise ValueError('El monto del pago debe ser mayor a cero.')
+
+        if late_fee_amount:
+            late_fee_amount = Decimal(str(late_fee_amount))
+            if late_fee_amount > 0:
+                InstallmentPayment.objects.create(
+                    installment=self,
+                    amount=late_fee_amount,
+                    payment_date=payment_date,
+                    created_by=created_by,
+                    is_late_fee=True,
+                    note='Recargo por mora',
+                )
+                self._prefetched_objects_cache = {}
 
         affected = [self]
         remaining_to_apply = amount
@@ -615,6 +645,7 @@ class InstallmentPayment(models.Model):
     payment_date = models.DateField(verbose_name='Fecha de Pago')
     created_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL, verbose_name='Registrado por')
     note = models.CharField(max_length=200, blank=True, verbose_name='Nota')
+    is_late_fee = models.BooleanField(default=False, verbose_name='Es Recargo por Mora')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
 
     class Meta:

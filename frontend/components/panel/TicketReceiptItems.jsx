@@ -34,8 +34,8 @@ export default function TicketReceiptItems({
   return (
     <div className="ticket-receipt">
       <div style={{ textAlign: 'center', marginBottom: '1.5mm' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '13px' }}>{main}</p>
-        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '10px' }}>{subtitle}</p>}
+        <p style={{ fontWeight: 'bold', fontSize: '13px', textTransform: 'uppercase' }}>{main}</p>
+        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '10px', textTransform: 'uppercase' }}>{subtitle}</p>}
         {info?.ruc && <p style={{ fontSize: '8px' }}>RUC: {info.ruc}</p>}
         {info?.address && <p style={{ fontSize: '8px' }}>{info.address}</p>}
         {info?.phone && <p style={{ fontSize: '8px' }}>Tel: {info.phone}</p>}

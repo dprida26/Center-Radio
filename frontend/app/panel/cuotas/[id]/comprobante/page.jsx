@@ -136,6 +136,12 @@ function ComprobanteCuotaInner() {
     )
   }
 
+  const lateFeePaid = parseFloat(installment.late_fee_paid_so_far) || 0
+  const installmentPaid = parseFloat(installment.paid_amount ?? installment.amount)
+  const totalPaidWithLateFee = installmentPaid + lateFeePaid
+  const regularPayments = installment.payments?.filter((p) => !p.is_late_fee) || []
+  const lateFeePayments = installment.payments?.filter((p) => p.is_late_fee) || []
+
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6 print:hidden">
@@ -214,14 +220,22 @@ function ComprobanteCuotaInner() {
                 <td className="px-4 py-3">{formatDate(installment.due_date)}</td>
                 <td className="px-4 py-3">{formatDate(installment.paid_date)}</td>
                 <td className="px-4 py-3 text-right font-semibold">
-                  {formatGs(installment.paid_amount ?? installment.amount)}
+                  {formatGs(installmentPaid)}
                 </td>
               </tr>
+              {lateFeePaid > 0 && (
+                <tr className="border-t border-gray-100">
+                  <td className="px-4 py-3 text-red-600" colSpan={3}>Mora</td>
+                  <td className="px-4 py-3 text-right font-semibold text-red-600">
+                    {formatGs(lateFeePaid)}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        {installment.payments?.length > 1 && (
+        {regularPayments.length > 1 && (
           <div className="mb-6">
             <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Historial de Abonos</p>
             <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
@@ -232,8 +246,30 @@ function ComprobanteCuotaInner() {
                 </tr>
               </thead>
               <tbody>
-                {installment.payments.map((p) => (
+                {regularPayments.map((p) => (
                   <tr key={p.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2">{formatDate(p.payment_date)}</td>
+                    <td className="px-4 py-2 text-right">{formatGs(p.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {lateFeePayments.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-semibold text-red-600 uppercase mb-2">Mora Cobrada</p>
+            <table className="w-full text-sm border border-red-100 rounded-lg overflow-hidden">
+              <thead className="bg-red-50">
+                <tr className="text-left text-red-600">
+                  <th className="px-4 py-2 font-medium">Fecha</th>
+                  <th className="px-4 py-2 font-medium text-right">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lateFeePayments.map((p) => (
+                  <tr key={p.id} className="border-t border-red-50">
                     <td className="px-4 py-2">{formatDate(p.payment_date)}</td>
                     <td className="px-4 py-2 text-right">{formatGs(p.amount)}</td>
                   </tr>
@@ -247,8 +283,13 @@ function ComprobanteCuotaInner() {
           <div className="text-right">
             <p className="text-xs font-semibold text-gray-400 uppercase">Total Pagado</p>
             <p className="text-2xl font-bold text-gray-900">
-              {formatGs(installment.paid_amount ?? installment.amount)}
+              {formatGs(totalPaidWithLateFee)}
             </p>
+            {lateFeePaid > 0 && (
+              <p className="text-xs text-gray-500 mt-1">
+                Incluye {formatGs(installmentPaid)} de cuota + {formatGs(lateFeePaid)} de mora
+              </p>
+            )}
           </div>
         </div>
 
@@ -279,7 +320,7 @@ function ComprobanteCuotaInner() {
         installmentCount={installment.installment_count}
         dueDate={installment.due_date}
         paidDate={installment.paid_date}
-        amount={installment.paid_amount ?? installment.amount}
+        amount={totalPaidWithLateFee}
         paymentsHistory={installment.payments}
         signatureLabel="Firma del Cliente"
       />
