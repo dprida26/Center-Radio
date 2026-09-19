@@ -45,27 +45,27 @@ export default function TicketReceipt({
   const { main, subtitle } = splitBusinessName(info?.legal_name || info?.name)
   return (
     <div className="ticket-receipt">
-      <div style={{ textAlign: 'center', marginBottom: '2mm' }}>
-        <p style={{ fontWeight: 'bold', fontSize: '15px' }}>{main}</p>
-        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '11px' }}>{subtitle}</p>}
-        {info?.ruc && <p>RUC: {info.ruc}</p>}
-        {info?.address && <p>{info.address}</p>}
-        {info?.phone && <p>Tel: {info.phone}</p>}
+      <div style={{ textAlign: 'center', marginBottom: '1.5mm' }}>
+        <p style={{ fontWeight: 'bold', fontSize: '13px' }}>{main}</p>
+        {subtitle && <p style={{ fontWeight: 'bold', fontSize: '10px' }}>{subtitle}</p>}
+        {info?.ruc && <p style={{ fontSize: '8px' }}>RUC: {info.ruc}</p>}
+        {info?.address && <p style={{ fontSize: '8px' }}>{info.address}</p>}
+        {info?.phone && <p style={{ fontSize: '8px' }}>Tel: {info.phone}</p>}
       </div>
 
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+      <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
 
       <p style={{ textAlign: 'center', fontWeight: 'bold' }}>{title}</p>
-      <p style={{ textAlign: 'center' }}>N° {String(receiptId).padStart(6, '0')}</p>
+      <p style={{ textAlign: 'center', fontSize: '8px' }}>N° {String(receiptId).padStart(6, '0')}</p>
 
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+      <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
 
       <p>{partyLabel}: {partyName}</p>
-      {partyExtra && <p>{partyExtra}</p>}
+      {partyExtra && <p style={{ fontSize: '8px' }}>{partyExtra}</p>}
       <p>{detailLabel}: {detailValue}</p>
-      {detailExtra && <p>{detailExtra}</p>}
+      {detailExtra && <p style={{ fontSize: '8px' }}>{detailExtra}</p>}
 
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+      <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
 
       {installmentCount !== undefined && (
         <p>Cuota: {installmentNumber} de {installmentCount}</p>
@@ -73,7 +73,7 @@ export default function TicketReceipt({
       {dueDate !== undefined && <p>Vencimiento: {formatDate(dueDate)}</p>}
       <p>Fecha de pago: {formatDate(paidDate)}</p>
 
-      <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+      <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
 
       {paymentsHistory?.length > 1 && (
         <>
@@ -81,30 +81,30 @@ export default function TicketReceipt({
           {paymentsHistory.map((p) => (
             <p key={p.id}>{formatDate(p.payment_date)} — {formatGs(p.amount)}</p>
           ))}
-          <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
+          <div style={{ borderTop: '1px dashed #000', margin: '1.5mm 0' }} />
         </>
       )}
 
-      <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px' }}>
+      <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '10px' }}>
         {amountLabel}
       </p>
-      <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px' }}>
+      <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '12px' }}>
         {formatGs(amount)}
       </p>
       {balanceAfter !== undefined && (
-        <p style={{ textAlign: 'center', fontSize: '10px' }}>
+        <p style={{ textAlign: 'center', fontSize: '9px' }}>
           {balanceLabel}: {formatGs(balanceAfter)}
         </p>
       )}
 
-      <div style={{ borderTop: '1px dashed #000', margin: '3mm 0 2mm' }} />
+      <div style={{ borderTop: '1px dashed #000', margin: '2.5mm 0 1.5mm' }} />
 
-      <p style={{ textAlign: 'center', marginTop: '22mm' }}>_____________________</p>
+      <p style={{ textAlign: 'center', marginTop: '18mm' }}>_____________________</p>
       <p style={{ textAlign: 'center' }}>{signatureLabel}</p>
       {showThanks && (
         <p style={{ textAlign: 'center', marginTop: '3mm' }}>¡Gracias por su compra!</p>
       )}
-      <div style={{ marginTop: '12mm' }} />
+      <div style={{ marginTop: '10mm' }} />
     </div>
   )
 }
