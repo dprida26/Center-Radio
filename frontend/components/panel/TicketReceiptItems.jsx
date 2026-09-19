@@ -29,7 +29,6 @@ export default function TicketReceiptItems({
   date,
   items,
   total,
-  footerText,
 }) {
   const { main, subtitle } = splitBusinessName(info?.legal_name || info?.name)
   return (
@@ -58,26 +57,15 @@ export default function TicketReceiptItems({
       {items.map((item, idx) => (
         <div key={idx} style={{ marginBottom: '1.5mm' }}>
           <p>{item.quantity}x {item.name}</p>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{formatGs(item.unitPrice)} c/u</span>
-            <span>{formatGs(item.subtotal)}</span>
-          </div>
+          <p>{formatGs(item.unitPrice)} c/u = {formatGs(item.subtotal)}</p>
         </div>
       ))}
 
       <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '13px' }}>
-        <span>TOTAL</span>
-        <span>{formatGs(total)}</span>
-      </div>
-
-      <div style={{ borderTop: '1px dashed #000', margin: '3mm 0 2mm' }} />
-
-      <p style={{ textAlign: 'center', fontSize: '9px' }}>
-        {footerText || 'No reemplaza la factura legal.'}
-      </p>
-      <p style={{ textAlign: 'center', marginTop: '2mm' }}>¡Gracias por su compra!</p>
+      <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px' }}>TOTAL</p>
+      <p style={{ textAlign: 'center', fontWeight: 'bold', fontSize: '13px' }}>{formatGs(total)}</p>
+      <div style={{ marginTop: '12mm' }} />
     </div>
   )
 }

@@ -396,6 +396,7 @@ function ComprobanteAbono({ info, installment, payment, balanceAfter, receiptRef
         amountLabel="MONTO ABONADO"
         balanceAfter={balanceAfter}
         signatureLabel="Firma del Cliente"
+        showThanks
       />
     </div>
   )

@@ -40,6 +40,7 @@ export default function TicketReceipt({
   balanceLabel = 'Saldo restante',
   paymentsHistory,
   signatureLabel,
+  showThanks = false,
 }) {
   const { main, subtitle } = splitBusinessName(info?.legal_name || info?.name)
   return (
@@ -78,10 +79,7 @@ export default function TicketReceipt({
         <>
           <p style={{ fontWeight: 'bold' }}>Historial de abonos:</p>
           {paymentsHistory.map((p) => (
-            <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>{formatDate(p.payment_date)}</span>
-              <span>{formatGs(p.amount)}</span>
-            </div>
+            <p key={p.id}>{formatDate(p.payment_date)} — {formatGs(p.amount)}</p>
           ))}
           <div style={{ borderTop: '1px dashed #000', margin: '2mm 0' }} />
         </>
@@ -101,12 +99,12 @@ export default function TicketReceipt({
 
       <div style={{ borderTop: '1px dashed #000', margin: '3mm 0 2mm' }} />
 
-      <p style={{ textAlign: 'center', marginTop: '14mm' }}>_____________________</p>
+      <p style={{ textAlign: 'center', marginTop: '22mm' }}>_____________________</p>
       <p style={{ textAlign: 'center' }}>{signatureLabel}</p>
-
-      <p style={{ textAlign: 'center', marginTop: '3mm', fontSize: '9px' }}>
-        No reemplaza la factura legal.
-      </p>
+      {showThanks && (
+        <p style={{ textAlign: 'center', marginTop: '3mm' }}>¡Gracias por su compra!</p>
+      )}
+      <div style={{ marginTop: '12mm' }} />
     </div>
   )
 }

@@ -57,14 +57,14 @@ body {
     font-weight: bold;
     line-height: 1.4;
     color: #000;
-    text-align: center;
+    text-align: left;
   }
 
   .ticket-receipt * {
     max-width: 100%;
     font-weight: bold;
-    text-align: center;
     box-sizing: border-box;
+    overflow-wrap: anywhere;
     word-break: break-word;
   }
 }
