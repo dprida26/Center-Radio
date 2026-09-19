@@ -280,6 +280,10 @@ class Sale(models.Model):
     interest_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Tasa de Interés (%)')
     down_payment = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Entrega Inicial')
     payment_day = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='Día de Pago Mensual')
+    first_due_date = models.DateField(
+        null=True, blank=True, verbose_name='Fecha de Vencimiento de la Primera Cuota',
+        help_text='Si se define, la cuota 1 vence en esta fecha exacta (en vez de un mes despues de la venta) y las siguientes se calculan a partir de ella.',
+    )
     late_fee_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Interés por Mora (%)')
     sale_date = models.DateField(verbose_name='Fecha de Venta')
     notes = models.TextField(blank=True, verbose_name='Notas')
@@ -354,10 +358,15 @@ class Sale(models.Model):
             amount = base_amount
             if i == self.installment_count:
                 amount = base_amount + remainder
-            due_date = self.sale_date + relativedelta(months=i)
-            if self.payment_day:
-                last_day = calendar.monthrange(due_date.year, due_date.month)[1]
-                due_date = due_date.replace(day=min(self.payment_day, last_day))
+
+            if self.first_due_date:
+                due_date = self.first_due_date + relativedelta(months=i - 1)
+            else:
+                due_date = self.sale_date + relativedelta(months=i)
+                if self.payment_day:
+                    last_day = calendar.monthrange(due_date.year, due_date.month)[1]
+                    due_date = due_date.replace(day=min(self.payment_day, last_day))
+
             Installment.objects.create(
                 sale=self,
                 number=i,

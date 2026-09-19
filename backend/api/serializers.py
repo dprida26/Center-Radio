@@ -287,7 +287,7 @@ class SaleSerializer(serializers.ModelSerializer):
         model = Sale
         fields = [
             'id', 'customer', 'customer_name', 'customer_document', 'items', 'payment_type', 'installment_count',
-            'interest_rate', 'down_payment', 'payment_day', 'late_fee_rate',
+            'interest_rate', 'down_payment', 'payment_day', 'first_due_date', 'late_fee_rate',
             'sale_date', 'notes', 'total_amount', 'remaining_amount', 'installments', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']

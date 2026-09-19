@@ -25,6 +25,7 @@ export default function NuevaVentaPage() {
   const [interestRate, setInterestRate] = useState(0)
   const [downPayment, setDownPayment] = useState(0)
   const [paymentDay, setPaymentDay] = useState('')
+  const [firstDueDate, setFirstDueDate] = useState('')
   const [lateFeeRate, setLateFeeRate] = useState(0)
   const [items, setItems] = useState([])
   const [useCustomInstallmentAmount, setUseCustomInstallmentAmount] = useState(false)
@@ -83,6 +84,7 @@ export default function NuevaVentaPage() {
         interest_rate: paymentType === 'INSTALLMENTS' ? interestRate : 0,
         down_payment: paymentType === 'INSTALLMENTS' ? (parseFloat(downPayment) || 0) : 0,
         payment_day: paymentType === 'INSTALLMENTS' && paymentDay ? Number(paymentDay) : null,
+        first_due_date: paymentType === 'INSTALLMENTS' && firstDueDate ? firstDueDate : null,
         late_fee_rate: paymentType === 'INSTALLMENTS' ? (parseFloat(lateFeeRate) || 0) : 0,
         sale_date: saleDate,
         notes,
@@ -270,6 +272,16 @@ export default function NuevaVentaPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <p className="text-xs text-gray-400 mt-1">Opcional. Si no se indica, se usa la fecha de venta.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Vencimiento de la 1ª cuota</label>
+                <input
+                  type="date"
+                  value={firstDueDate}
+                  onChange={(e) => setFirstDueDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Opcional. Elegí la fecha exacta (por ej. del mes corriente) si no querés esperar un mes desde la venta.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Interés por mora (% mensual)</label>
