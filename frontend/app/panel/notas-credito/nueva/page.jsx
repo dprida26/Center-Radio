@@ -204,7 +204,7 @@ export default function NuevaNotaCreditoPage() {
                 type="text"
                 placeholder="Ej: Producto defectuoso, error de facturación, descuento comercial..."
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => setReason(e.target.value.toUpperCase())}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -298,7 +298,7 @@ export default function NuevaNotaCreditoPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Notas (opcional)</label>
               <textarea
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => setNotes(e.target.value.toUpperCase())}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />

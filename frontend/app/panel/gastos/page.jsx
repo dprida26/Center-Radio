@@ -267,7 +267,10 @@ function ExpenseModal({ expense, onClose, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+  const handleChange = (field) => (e) => {
+    const value = field === 'description' ? e.target.value.toUpperCase() : e.target.value
+    setForm((f) => ({ ...f, [field]: value }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()

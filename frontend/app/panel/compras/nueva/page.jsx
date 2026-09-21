@@ -220,7 +220,7 @@ export default function NuevaCompraPage() {
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Notas (opcional)</label>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => setNotes(e.target.value.toUpperCase())}
             rows={2}
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -517,7 +517,11 @@ function CreateProductModal({ supplier, initialName, onCancel, onCreated }) {
     categoryService.getAll().then(setCategories)
   }, [])
 
-  const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+  const LOWERCASE_FIELDS = ['category', 'price', 'cost_price']
+  const handleChange = (field) => (e) => {
+    const value = LOWERCASE_FIELDS.includes(field) ? e.target.value : e.target.value.toUpperCase()
+    setForm((f) => ({ ...f, [field]: value }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()

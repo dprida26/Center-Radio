@@ -323,7 +323,7 @@ function ProductFormModal({ product, categories, suppliers, onClose, onSaved }) 
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value.toUpperCase())}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -332,7 +332,7 @@ function ProductFormModal({ product, categories, suppliers, onClose, onSaved }) 
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Descripción</label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.toUpperCase())}
               rows={2}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -344,7 +344,7 @@ function ProductFormModal({ product, categories, suppliers, onClose, onSaved }) 
               <input
                 type="text"
                 value={brand}
-                onChange={(e) => setBrand(e.target.value)}
+                onChange={(e) => setBrand(e.target.value.toUpperCase())}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -353,7 +353,7 @@ function ProductFormModal({ product, categories, suppliers, onClose, onSaved }) 
               <input
                 type="text"
                 value={model}
-                onChange={(e) => setModel(e.target.value)}
+                onChange={(e) => setModel(e.target.value.toUpperCase())}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -781,7 +781,7 @@ function StockHistoryModal({ product, onClose, onAdjusted }) {
                   <input
                     type="text"
                     value={adjustReason}
-                    onChange={(e) => setAdjustReason(e.target.value)}
+                    onChange={(e) => setAdjustReason(e.target.value.toUpperCase())}
                     placeholder="Ej: Rotura, recuento"
                     required
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -259,7 +259,11 @@ function EditSupplierModal({ supplier, onCancel, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+  const LOWERCASE_FIELDS = ['phone', 'email', 'ruc']
+  const handleChange = (field) => (e) => {
+    const value = LOWERCASE_FIELDS.includes(field) ? e.target.value : e.target.value.toUpperCase()
+    setForm((f) => ({ ...f, [field]: value }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()

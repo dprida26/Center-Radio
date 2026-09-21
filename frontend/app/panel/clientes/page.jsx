@@ -158,7 +158,11 @@ function CreateCustomerModal({ onCancel, onCreated }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
+  const LOWERCASE_FIELDS = ['document_number', 'phone', 'email', 'maps_location_url', 'reference1_phone', 'reference2_phone']
+  const handleChange = (field) => (e) => {
+    const value = LOWERCASE_FIELDS.includes(field) ? e.target.value : e.target.value.toUpperCase()
+    setForm((f) => ({ ...f, [field]: value }))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
