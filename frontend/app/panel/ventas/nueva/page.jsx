@@ -227,9 +227,12 @@ export default function NuevaVentaPage() {
                 <input
                   type="number"
                   min={2}
-                  max={24}
                   value={installmentCount}
-                  onChange={(e) => setInstallmentCount(Math.max(2, parseInt(e.target.value) || 2))}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setInstallmentCount(v === '' ? '' : parseInt(v) || '')
+                  }}
+                  onBlur={(e) => setInstallmentCount(Math.max(2, parseInt(e.target.value) || 2))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
