@@ -104,7 +104,7 @@ export default function ProductosPage() {
           type="text"
           placeholder="Buscar por nombre, marca, modelo..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSearch(e.target.value.toUpperCase())}
           className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>

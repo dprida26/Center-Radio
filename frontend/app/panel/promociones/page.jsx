@@ -338,7 +338,7 @@ function PromotionFormModal({ promotion, onClose, onSaved }) {
               type="text"
               placeholder="Buscar producto..."
               value={productQuery}
-              onChange={(e) => setProductQuery(e.target.value)}
+              onChange={(e) => setProductQuery(e.target.value.toUpperCase())}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-gray-100">
