@@ -226,13 +226,13 @@ export default function NuevaVentaPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Cantidad de cuotas</label>
                 <input
                   type="number"
-                  min={2}
+                  min={1}
                   value={installmentCount}
                   onChange={(e) => {
                     const v = e.target.value
                     setInstallmentCount(v === '' ? '' : parseInt(v) || '')
                   }}
-                  onBlur={(e) => setInstallmentCount(Math.max(2, parseInt(e.target.value) || 2))}
+                  onBlur={(e) => setInstallmentCount(Math.max(1, parseInt(e.target.value) || 1))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

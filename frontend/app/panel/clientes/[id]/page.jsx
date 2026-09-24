@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2, Pencil, Printer, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, RotateCcw, Phone, Mail, MapPin, X, Loader2, Pencil, Printer, Copy, Check, ChevronDown, ChevronUp, Trash2, Search, Plus } from 'lucide-react'
 import Link from 'next/link'
-import { customerService, installmentService } from '@/services/api'
+import { customerService, installmentService, saleService, productService } from '@/services/api'
 import { MoneyInput } from '@/components/panel/MoneyInput'
 
 function formatGs(value) {
@@ -27,6 +27,8 @@ export default function ClienteDetallePage() {
   const [revertTarget, setRevertTarget] = useState(null)
   const [lateFeeTarget, setLateFeeTarget] = useState(null)
   const [paymentInfoModal, setPaymentInfoModal] = useState(null)
+  const [editSaleTarget, setEditSaleTarget] = useState(null)
+  const [deleteSaleTarget, setDeleteSaleTarget] = useState(null)
   const [editing, setEditing] = useState(false)
   const [locationCopied, setLocationCopied] = useState(false)
 
@@ -94,6 +96,42 @@ export default function ClienteDetallePage() {
       await installmentService.revertPayment(revertTarget.id)
       load()
       setRevertTarget(null)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleSaveEditSale = async (payload, reason) => {
+    setBusyId(editSaleTarget.id)
+    try {
+      await saleService.update(editSaleTarget.id, payload, reason)
+      setEditSaleTarget(null)
+      load()
+    } catch (err) {
+      const detail = err?.response?.data
+      alert(
+        typeof detail === 'object'
+          ? Object.values(detail).flat().join(' ')
+          : 'No se pudo editar la venta.'
+      )
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const handleConfirmDeleteSale = async (reason) => {
+    setBusyId(deleteSaleTarget.id)
+    try {
+      await saleService.remove(deleteSaleTarget.id, reason)
+      setDeleteSaleTarget(null)
+      load()
+    } catch (err) {
+      const detail = err?.response?.data
+      alert(
+        typeof detail === 'object'
+          ? Object.values(detail).flat().join(' ')
+          : 'No se pudo eliminar la venta.'
+      )
     } finally {
       setBusyId(null)
     }
@@ -245,6 +283,8 @@ export default function ClienteDetallePage() {
                 onRequestMarkPaid={setConfirmTarget}
                 onRevert={setRevertTarget}
                 onEditLateFee={setLateFeeTarget}
+                onEditSale={setEditSaleTarget}
+                onDeleteSale={setDeleteSaleTarget}
                 busyId={busyId}
               />
             ))}
@@ -283,6 +323,25 @@ export default function ClienteDetallePage() {
         <PaymentInfoModal
           info={paymentInfoModal}
           onClose={() => setPaymentInfoModal(null)}
+        />
+      )}
+
+      {editSaleTarget && (
+        <EditSaleModal
+          sale={editSaleTarget}
+          customer={customer}
+          busy={busyId === editSaleTarget.id}
+          onCancel={() => setEditSaleTarget(null)}
+          onSave={handleSaveEditSale}
+        />
+      )}
+
+      {deleteSaleTarget && (
+        <DeleteSaleModal
+          sale={deleteSaleTarget}
+          busy={busyId === deleteSaleTarget.id}
+          onCancel={() => setDeleteSaleTarget(null)}
+          onConfirm={handleConfirmDeleteSale}
         />
       )}
 
@@ -759,6 +818,404 @@ function PaymentInfoModal({ info, onClose }) {
   )
 }
 
+function EditSaleModal({ sale, customer, busy, onCancel, onSave }) {
+  const [saleDate, setSaleDate] = useState(sale.sale_date)
+  const [notes, setNotes] = useState(sale.notes || '')
+  const [items, setItems] = useState(
+    (sale.items || []).map((it) => ({
+      product: { id: it.product, name: it.product_name, stock: 9999 },
+      quantity: it.quantity,
+      unit_price: Math.round(parseFloat(it.unit_price) || 0),
+    }))
+  )
+  const [paymentType, setPaymentType] = useState(sale.payment_type)
+  const [installmentCount, setInstallmentCount] = useState(sale.installment_count || 1)
+  const [interestRate, setInterestRate] = useState(sale.interest_rate || 0)
+  const [downPayment, setDownPayment] = useState(Math.round(parseFloat(sale.down_payment) || 0))
+  const [paymentDay, setPaymentDay] = useState(sale.payment_day || '')
+  const [firstDueDate, setFirstDueDate] = useState(sale.first_due_date || '')
+  const [lateFeeRate, setLateFeeRate] = useState(sale.late_fee_rate || 0)
+  const [reason, setReason] = useState('')
+  const hasPayments = (sale.installments || []).some((inst) => parseFloat(inst.paid_so_far ?? 0) > 0)
+
+  const addItem = (product) => {
+    setItems((prev) => {
+      if (prev.some((it) => it.product.id === product.id)) return prev
+      return [...prev, { product, quantity: 1, unit_price: product.price || 0 }]
+    })
+  }
+  const updateItem = (productId, field, value) => {
+    setItems((prev) => prev.map((it) => (it.product.id === productId ? { ...it, [field]: value } : it)))
+  }
+  const removeItem = (productId) => {
+    setItems((prev) => prev.filter((it) => it.product.id !== productId))
+  }
+
+  const subtotal = items.reduce((sum, it) => sum + (parseFloat(it.unit_price) || 0) * (parseInt(it.quantity) || 0), 0)
+  const total = paymentType === 'INSTALLMENTS' ? subtotal * (1 + (parseFloat(interestRate) || 0) / 100) : subtotal
+  const downPaymentExceedsTotal = paymentType === 'INSTALLMENTS' && (parseFloat(downPayment) || 0) > total
+
+  const canSubmit = reason.trim().length > 0 && items.length > 0 &&
+    items.every((it) => it.quantity > 0 && it.unit_price >= 0) && !downPaymentExceedsTotal
+
+  const handleSubmit = () => {
+    if (!canSubmit) return
+    const payload = {
+      customer: customer.id,
+      sale_date: saleDate,
+      notes,
+      items: items.map((it) => ({
+        product: it.product.id,
+        quantity: Number(it.quantity),
+        unit_price: it.unit_price,
+      })),
+    }
+    if (!hasPayments) {
+      Object.assign(payload, {
+        payment_type: paymentType,
+        installment_count: paymentType === 'INSTALLMENTS' ? installmentCount : 1,
+        interest_rate: paymentType === 'INSTALLMENTS' ? interestRate : 0,
+        down_payment: paymentType === 'INSTALLMENTS' ? (parseFloat(downPayment) || 0) : 0,
+        payment_day: paymentType === 'INSTALLMENTS' && paymentDay ? Number(paymentDay) : null,
+        first_due_date: paymentType === 'INSTALLMENTS' && firstDueDate ? firstDueDate : null,
+        late_fee_rate: paymentType === 'INSTALLMENTS' ? (parseFloat(lateFeeRate) || 0) : 0,
+      })
+    }
+    onSave(payload, reason.trim())
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4 py-8">
+      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white">
+          <h3 className="text-lg font-bold text-gray-900">Editar venta #{sale.id}</h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {hasPayments && (
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Esta venta ya tiene pagos registrados: no se pueden editar los productos ni las condiciones de cuotas, solo la fecha y las notas.
+            </p>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Fecha de venta</label>
+            <input
+              type="date"
+              value={saleDate}
+              onChange={(e) => setSaleDate(e.target.value)}
+              className="w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notas</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.toUpperCase())}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">Productos</h4>
+            {!hasPayments && <ProductPickerInline onSelect={addItem} />}
+
+            {items.length > 0 && (
+              <div className="space-y-2 mt-3">
+                {items.map((it) => (
+                  <div key={it.product.id} className="flex items-center gap-2 border border-gray-200 rounded-lg p-2.5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{it.product.name}</p>
+                    </div>
+                    <input
+                      type="number"
+                      min={1}
+                      disabled={hasPayments}
+                      value={it.quantity}
+                      onChange={(e) => updateItem(it.product.id, 'quantity', parseInt(e.target.value) || 1)}
+                      className="w-16 px-2 py-1.5 border border-gray-200 rounded-lg text-sm text-center disabled:bg-gray-50"
+                    />
+                    <MoneyInput
+                      value={it.unit_price}
+                      onChange={(v) => updateItem(it.product.id, 'unit_price', v)}
+                      className="w-32 px-2 py-1.5 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50"
+                      disabled={hasPayments}
+                    />
+                    {!hasPayments && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(it.product.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {!hasPayments && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">Forma de pago</h4>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentType('CASH')}
+                  className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                    paymentType === 'CASH' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <p className="font-semibold text-gray-900 text-sm">Contado</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentType('INSTALLMENTS')}
+                  className={`p-3 rounded-lg border-2 text-left transition-colors ${
+                    paymentType === 'INSTALLMENTS' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <p className="font-semibold text-gray-900 text-sm">Cuotas</p>
+                </button>
+              </div>
+
+              {paymentType === 'INSTALLMENTS' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Cantidad de cuotas</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={installmentCount}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setInstallmentCount(v === '' ? '' : parseInt(v) || '')
+                      }}
+                      onBlur={(e) => setInstallmentCount(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Interés (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={interestRate}
+                      onChange={(e) => setInterestRate(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Entrega inicial (Gs.)</label>
+                    <MoneyInput
+                      value={downPayment}
+                      onChange={setDownPayment}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        downPaymentExceedsTotal ? 'border-red-300' : 'border-gray-200'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Día de pago mensual</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      value={paymentDay}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        if (v === '') return setPaymentDay('')
+                        setPaymentDay(Math.min(31, Math.max(1, parseInt(v) || 1)))
+                      }}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Vencimiento 1ª cuota</label>
+                    <input
+                      type="date"
+                      value={firstDueDate}
+                      onChange={(e) => setFirstDueDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Interés por mora (% mensual)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={lateFeeRate}
+                      onChange={(e) => setLateFeeRate(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  {downPaymentExceedsTotal && (
+                    <p className="text-xs text-red-600 col-span-2">La entrega inicial no puede superar el total de la venta.</p>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-3">
+                Al guardar, las cuotas de esta venta se regeneran desde cero con estas condiciones.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Motivo de la edición *</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ej: Se cargó mal el producto, corrección de precio..."
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={busy}
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={busy || !canSubmit}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors"
+            >
+              {busy && <Loader2 size={16} className="animate-spin" />}
+              {busy ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProductPickerInline({ onSelect }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!query) {
+      setResults([])
+      return
+    }
+    setLoading(true)
+    const timeout = setTimeout(() => {
+      productService.getAll({ search: query }).then(setResults).finally(() => setLoading(false))
+    }, 250)
+    return () => clearTimeout(timeout)
+  }, [query])
+
+  return (
+    <div>
+      <div className="relative mb-2">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          type="text"
+          placeholder="Buscar producto para agregar..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      {loading && <p className="text-xs text-gray-400">Buscando...</p>}
+      {results.length > 0 && (
+        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+          {results.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => {
+                if (p.stock === 0) return
+                onSelect(p)
+                setQuery('')
+                setResults([])
+              }}
+              disabled={p.stock === 0}
+              className="w-full text-left border border-gray-200 rounded-lg p-2 hover:border-blue-400 hover:bg-blue-50 transition-colors disabled:opacity-40 flex items-center justify-between text-sm"
+            >
+              <span className="truncate">{p.name}</span>
+              <Plus size={14} className="text-blue-600 shrink-0" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DeleteSaleModal({ sale, busy, onCancel, onConfirm }) {
+  const [reason, setReason] = useState('')
+  const hasPayments = (sale.installments || []).some((inst) => parseFloat(inst.paid_so_far ?? 0) > 0)
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900">Eliminar venta #{sale.id}</h3>
+          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        {hasPayments ? (
+          <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">
+            Esta venta ya tiene pagos registrados y no se puede eliminar. Usá una nota de crédito para corregirla.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-gray-600 mb-4">
+              Se eliminará la venta y se devolverá el stock de los productos. Esta acción no se puede deshacer.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Motivo de la eliminación *</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Ej: Venta cargada por error, cliente canceló la compra..."
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
+            />
+          </>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            className="flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          {!hasPayments && (
+            <button
+              onClick={() => onConfirm(reason.trim())}
+              disabled={busy || !reason.trim()}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 transition-colors"
+            >
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              {busy ? 'Eliminando...' : 'Sí, eliminar'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ConfirmRevertModal({ installment, busy, onCancel, onConfirm }) {
   const isPartial = installment.status !== 'PAID'
   const amountToUndo = isPartial ? installment.paid_so_far : installment.paid_amount
@@ -877,7 +1334,7 @@ function LateFeeModal({ installment, busy, onCancel, onSave }) {
   )
 }
 
-function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) {
+function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale, onDeleteSale, busyId }) {
   const isCash = sale.payment_type === 'CASH'
   const hasPendingBalance = !isCash && parseFloat(sale.remaining_amount) > 0
   const [expanded, setExpanded] = useState(hasPendingBalance)
@@ -929,6 +1386,22 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, busyId }) 
             <Printer size={16} />
           </Link>
         )}
+        <button
+          type="button"
+          onClick={() => onEditSale(sale)}
+          className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
+          title="Editar venta"
+        >
+          <Pencil size={16} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onDeleteSale(sale)}
+          className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+          title="Eliminar venta"
+        >
+          <Trash2 size={16} />
+        </button>
       </div>
 
       {!isCash && parseFloat(sale.down_payment) > 0 && (

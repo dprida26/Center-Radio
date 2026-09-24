@@ -609,6 +609,81 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
         sale.generate_installments(custom_installment_amount=custom_amount or None)
         log_action(self.request.user, AuditLog.ACTION_CREATE, sale)
 
+    # Datos básicos: siempre editables, sin importar si ya hay pagos.
+    BASIC_EDITABLE_FIELDS = {'customer', 'sale_date', 'notes'}
+    # Detalle de productos y condiciones de cuotas: solo editables mientras
+    # la venta no tenga ningún pago registrado, porque cambiarlos implica
+    # revertir/aplicar stock y regenerar las cuotas desde cero (se perdería
+    # cualquier abono ya hecho sobre las cuotas viejas).
+    RESTRICTED_EDITABLE_FIELDS = {
+        'items', 'payment_type', 'installment_count', 'interest_rate',
+        'down_payment', 'payment_day', 'first_due_date', 'late_fee_rate',
+    }
+    EDITABLE_FIELDS = BASIC_EDITABLE_FIELDS | RESTRICTED_EDITABLE_FIELDS
+
+    def _has_any_payment(self, sale):
+        return any(inst.paid_so_far > 0 for inst in sale.installments.all())
+
+    def update(self, request, *args, **kwargs):
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'reason': 'Debés indicar el motivo de la edición.'}, status=400)
+
+        payload = {k: v for k, v in request.data.items() if k in self.EDITABLE_FIELDS}
+        custom_amount = request.data.get('custom_installment_amount')
+
+        sale = self.get_object()
+        touches_restricted = any(field in payload for field in self.RESTRICTED_EDITABLE_FIELDS) or custom_amount
+        if touches_restricted and self._has_any_payment(sale):
+            return Response(
+                {'error': 'No se pueden editar los productos ni las condiciones de cuotas de esta venta porque ya tiene pagos registrados. Usá una nota de crédito para corregirla.'},
+                status=400,
+            )
+
+        old_items = list(sale.items.select_related('product').all()) if 'items' in payload else []
+        serializer = self.get_serializer(sale, data=payload, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        if touches_restricted:
+            sale.refresh_from_db()
+            if 'items' in payload:
+                for old_item in old_items:
+                    old_item.product.adjust_stock(
+                        old_item.quantity, reason=f'Reversión por edición de venta #{sale.id}',
+                    )
+                for new_item in sale.items.select_related('product').all():
+                    new_item.product.register_sale_exit(new_item.quantity, reason=f'Edición de venta #{sale.id}')
+            sale.generate_installments(custom_installment_amount=custom_amount or None)
+
+        log_action(
+            request.user, AuditLog.ACTION_UPDATE, sale,
+            description=f'Editó la venta #{sale.id}. Motivo: {reason}',
+        )
+        return Response(self.get_serializer(sale).data)
+
+    def destroy(self, request, *args, **kwargs):
+        reason = (request.data.get('reason') or '').strip()
+        if not reason:
+            return Response({'reason': 'Debés indicar el motivo de la eliminación.'}, status=400)
+
+        sale = self.get_object()
+        if self._has_any_payment(sale):
+            return Response(
+                {'error': 'No se puede eliminar esta venta porque ya tiene pagos registrados. Usá una nota de crédito para corregirla.'},
+                status=400,
+            )
+
+        for item in sale.items.select_related('product').all():
+            item.product.adjust_stock(item.quantity, reason=f'Reversión por eliminación de venta #{sale.id}')
+
+        log_action(
+            request.user, AuditLog.ACTION_DELETE, sale,
+            description=f'Eliminó la venta #{sale.id} ({sale}). Motivo: {reason}',
+        )
+        sale.delete()
+        return Response(status=204)
+
     def _ventas_range(self, request):
         today = timezone.now().date()
         date_from = request.query_params.get('date_from') or today.replace(day=1).isoformat()

@@ -369,6 +369,13 @@ export const saleService = {
     const { data } = await api.post('/sales/', payload)
     return data
   },
+  update: async (id, payload, reason) => {
+    const { data } = await api.patch(`/sales/${id}/`, { ...payload, reason })
+    return data
+  },
+  remove: async (id, reason) => {
+    await api.delete(`/sales/${id}/`, { data: { reason } })
+  },
 }
 
 export const installmentService = {

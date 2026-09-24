@@ -312,12 +312,26 @@ class SaleSerializer(serializers.ModelSerializer):
     def validate_items(self, items):
         if not items:
             raise serializers.ValidationError('La venta debe tener al menos un producto.')
+
+        # En una edición, esta misma venta ya tiene stock descontado por sus
+        # items actuales: hay que sumarlo de vuelta antes de comparar contra
+        # lo pedido, si no el stock disponible se ve artificialmente bajo.
+        reserved_by_this_sale = {}
+        if self.instance is not None:
+            for old_item in self.instance.items.all():
+                reserved_by_this_sale[old_item.product_id] = (
+                    reserved_by_this_sale.get(old_item.product_id, 0) + old_item.quantity
+                )
+
         for item in items:
             product = item.get('product')
             quantity = item.get('quantity', 1)
-            if product and quantity and product.stock < quantity:
+            if not product or not quantity:
+                continue
+            available = product.stock + reserved_by_this_sale.get(product.id, 0)
+            if available < quantity:
                 raise serializers.ValidationError(
-                    f'Stock insuficiente para "{product.name}". Disponible: {product.stock}'
+                    f'Stock insuficiente para "{product.name}". Disponible: {available}'
                 )
         return items
 
@@ -327,6 +341,19 @@ class SaleSerializer(serializers.ModelSerializer):
         for item_data in items_data:
             SaleItem.objects.create(sale=sale, **item_data)
         return sale
+
+    def update(self, instance, validated_data):
+        items_data = validated_data.pop('items', None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+
+        if items_data is not None:
+            instance.items.all().delete()
+            for item_data in items_data:
+                SaleItem.objects.create(sale=instance, **item_data)
+
+        return instance
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
