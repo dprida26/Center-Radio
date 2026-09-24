@@ -29,6 +29,7 @@ export default function ClienteDetallePage() {
   const [paymentInfoModal, setPaymentInfoModal] = useState(null)
   const [editSaleTarget, setEditSaleTarget] = useState(null)
   const [deleteSaleTarget, setDeleteSaleTarget] = useState(null)
+  const [saleActionError, setSaleActionError] = useState(null)
   const [editing, setEditing] = useState(false)
   const [locationCopied, setLocationCopied] = useState(false)
 
@@ -103,13 +104,14 @@ export default function ClienteDetallePage() {
 
   const handleSaveEditSale = async (payload, reason) => {
     setBusyId(editSaleTarget.id)
+    setSaleActionError(null)
     try {
       await saleService.update(editSaleTarget.id, payload, reason)
       setEditSaleTarget(null)
       load()
     } catch (err) {
       const detail = err?.response?.data
-      alert(
+      setSaleActionError(
         typeof detail === 'object'
           ? Object.values(detail).flat().join(' ')
           : 'No se pudo editar la venta.'
@@ -121,13 +123,14 @@ export default function ClienteDetallePage() {
 
   const handleConfirmDeleteSale = async (reason) => {
     setBusyId(deleteSaleTarget.id)
+    setSaleActionError(null)
     try {
       await saleService.remove(deleteSaleTarget.id, reason)
       setDeleteSaleTarget(null)
       load()
     } catch (err) {
       const detail = err?.response?.data
-      alert(
+      setSaleActionError(
         typeof detail === 'object'
           ? Object.values(detail).flat().join(' ')
           : 'No se pudo eliminar la venta.'
@@ -331,7 +334,8 @@ export default function ClienteDetallePage() {
           sale={editSaleTarget}
           customer={customer}
           busy={busyId === editSaleTarget.id}
-          onCancel={() => setEditSaleTarget(null)}
+          error={saleActionError}
+          onCancel={() => { setEditSaleTarget(null); setSaleActionError(null) }}
           onSave={handleSaveEditSale}
         />
       )}
@@ -340,7 +344,8 @@ export default function ClienteDetallePage() {
         <DeleteSaleModal
           sale={deleteSaleTarget}
           busy={busyId === deleteSaleTarget.id}
-          onCancel={() => setDeleteSaleTarget(null)}
+          error={saleActionError}
+          onCancel={() => { setDeleteSaleTarget(null); setSaleActionError(null) }}
           onConfirm={handleConfirmDeleteSale}
         />
       )}
@@ -818,7 +823,7 @@ function PaymentInfoModal({ info, onClose }) {
   )
 }
 
-function EditSaleModal({ sale, customer, busy, onCancel, onSave }) {
+function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
   const [saleDate, setSaleDate] = useState(sale.sale_date)
   const [notes, setNotes] = useState(sale.notes || '')
   const [items, setItems] = useState(
@@ -836,7 +841,9 @@ function EditSaleModal({ sale, customer, busy, onCancel, onSave }) {
   const [firstDueDate, setFirstDueDate] = useState(sale.first_due_date || '')
   const [lateFeeRate, setLateFeeRate] = useState(sale.late_fee_rate || 0)
   const [reason, setReason] = useState('')
-  const hasPayments = (sale.installments || []).some((inst) => parseFloat(inst.paid_so_far ?? 0) > 0)
+  const hasPayments = (sale.installments || []).some(
+    (inst) => parseFloat(inst.paid_so_far ?? 0) > 0 || inst.status === 'PAID'
+  )
 
   const addItem = (product) => {
     setItems((prev) => {
@@ -1078,6 +1085,12 @@ function EditSaleModal({ sale, customer, busy, onCancel, onSave }) {
             />
           </div>
 
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
+              {error}
+            </div>
+          )}
+
           <div className="flex gap-3 pt-2">
             <button
               type="button"
@@ -1158,9 +1171,11 @@ function ProductPickerInline({ onSelect }) {
   )
 }
 
-function DeleteSaleModal({ sale, busy, onCancel, onConfirm }) {
+function DeleteSaleModal({ sale, busy, error, onCancel, onConfirm }) {
   const [reason, setReason] = useState('')
-  const hasPayments = (sale.installments || []).some((inst) => parseFloat(inst.paid_so_far ?? 0) > 0)
+  const hasPayments = (sale.installments || []).some(
+    (inst) => parseFloat(inst.paid_so_far ?? 0) > 0 || inst.status === 'PAID'
+  )
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
@@ -1190,6 +1205,12 @@ function DeleteSaleModal({ sale, busy, onCancel, onConfirm }) {
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 mb-4"
             />
           </>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3 mb-4">
+            {error}
+          </div>
         )}
 
         <div className="flex gap-3">

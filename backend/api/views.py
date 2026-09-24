@@ -622,7 +622,13 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
     EDITABLE_FIELDS = BASIC_EDITABLE_FIELDS | RESTRICTED_EDITABLE_FIELDS
 
     def _has_any_payment(self, sale):
-        return any(inst.paid_so_far > 0 for inst in sale.installments.all())
+        # No alcanza con paid_so_far: las cuotas migradas del sistema legado
+        # están marcadas status=PAID con paid_amount cargado a mano, sin
+        # ningún InstallmentPayment real detrás (paid_so_far da 0 en ellas).
+        return any(
+            inst.paid_so_far > 0 or inst.status == Installment.STATUS_PAID
+            for inst in sale.installments.all()
+        )
 
     def update(self, request, *args, **kwargs):
         reason = (request.data.get('reason') or '').strip()
