@@ -74,3 +74,6 @@ staticfiles/
 .env.production.local
 .env.development.local
 .env.test.local
+
+# Backups de base de datos (contienen datos reales de clientes/ventas)
+backups/
