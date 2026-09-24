@@ -114,7 +114,7 @@ export default function ProveedorDetallePage() {
             </div>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500 uppercase font-semibold">Deuda Original</p>
+            <p className="text-xs text-gray-500 uppercase font-semibold">Histórico de Compras</p>
             <p className="text-lg font-semibold text-gray-500">
               {formatGs(supplier.total_credit_purchases)}
             </p>
