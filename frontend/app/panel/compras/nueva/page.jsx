@@ -45,7 +45,7 @@ export default function NuevaCompraPage() {
   const addItem = (product) => {
     setItems((prev) => {
       if (prev.some((it) => it.product.id === product.id)) return prev
-      return [...prev, { product, quantity: 1, unit_cost: product.cost_price || 0 }]
+      return [...prev, { product, quantity: 1, unit_cost: Math.round(parseFloat(product.cost_price) || 0) }]
     })
   }
 
