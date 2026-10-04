@@ -1187,12 +1187,26 @@ class InstallmentViewSet(viewsets.ModelViewSet):
         installment = self.get_object()
         if installment.status != Installment.STATUS_PAID and installment.paid_so_far <= 0:
             return Response({'error': 'Esta cuota no tiene pagos registrados.'}, status=400)
-        was_partial = installment.status != Installment.STATUS_PAID
-        installment.revert_payment()
-        desc = (
-            f'Deshizo el abono parcial de la cuota {installment.number}' if was_partial
-            else f'Revirtió el pago de la cuota {installment.number}'
-        )
+        if installment.has_later_installment_payments():
+            return Response(
+                {'error': 'No se puede revertir este pago porque las cuotas siguientes ya tienen pagos o abonos. Revertí primero los de las cuotas posteriores.'},
+                status=400,
+            )
+        payment_id = request.data.get('payment_id')
+        if payment_id:
+            payment = installment.payments.filter(pk=payment_id, is_late_fee=False).first()
+            if payment is None:
+                return Response({'error': 'El abono indicado no existe en esta cuota.'}, status=400)
+            amount = payment.amount
+            installment.revert_single_payment(payment)
+            desc = f'Deshizo un abono de Gs. {amount} de la cuota {installment.number}'
+        else:
+            was_partial = installment.status != Installment.STATUS_PAID
+            installment.revert_payment()
+            desc = (
+                f'Deshizo el abono parcial de la cuota {installment.number}' if was_partial
+                else f'Revirtió el pago de la cuota {installment.number}'
+            )
         log_action(request.user, AuditLog.ACTION_CUSTOM, installment, description=desc)
         serializer = self.get_serializer(installment)
         return Response(serializer.data)

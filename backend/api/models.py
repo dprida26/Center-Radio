@@ -669,6 +669,33 @@ class Installment(models.Model):
 
 
 class InstallmentPayment(models.Model):
+    def has_later_installment_payments(self):
+        """True si alguna cuota posterior de la misma venta ya tiene pagos de
+        capital: en ese caso no se puede revertir esta cuota sin dejar la
+        secuencia de pagos inconsistente."""
+        return InstallmentPayment.objects.filter(
+            installment__sale=self.sale_id, installment__number__gt=self.number,
+            is_late_fee=False,
+        ).exists()
+
+    def revert_single_payment(self, payment):
+        """Borra un abono puntual y recalcula estado y monto pagado. Si ya no
+        queda ningún abono de capital, también se borra el recargo de mora
+        cobrado junto a ellos."""
+        from django.utils import timezone
+        payment.delete()
+        self._prefetched_objects_cache = {}
+        paid = self.paid_so_far
+        if paid <= 0:
+            self.payments.all().delete()
+        if paid >= self.amount:
+            self.paid_amount = paid
+        else:
+            self.status = self.STATUS_OVERDUE if self.due_date < timezone.now().date() else self.STATUS_PENDING
+            self.paid_date = None
+            self.paid_amount = paid if paid > 0 else None
+        self.save()
+
     installment = models.ForeignKey(Installment, on_delete=models.CASCADE, related_name='payments', verbose_name='Cuota')
     amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto Abonado')
     payment_date = models.DateField(verbose_name='Fecha de Pago')

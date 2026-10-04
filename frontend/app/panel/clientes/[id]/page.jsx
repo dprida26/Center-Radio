@@ -94,9 +94,12 @@ export default function ClienteDetallePage() {
     if (!revertTarget) return
     setBusyId(revertTarget.id)
     try {
-      await installmentService.revertPayment(revertTarget.id)
+      await installmentService.revertPayment(revertTarget.id, revertTarget.paymentToRevert?.id)
       load()
       setRevertTarget(null)
+    } catch (err) {
+      setRevertTarget(null)
+      alert(err?.response?.data?.error || 'No se pudo deshacer el pago.')
     } finally {
       setBusyId(null)
     }
@@ -1238,6 +1241,7 @@ function DeleteSaleModal({ sale, busy, error, onCancel, onConfirm }) {
 }
 
 function ConfirmRevertModal({ installment, busy, onCancel, onConfirm }) {
+  const single = installment.paymentToRevert
   const isPartial = installment.status !== 'PAID'
   const amountToUndo = isPartial ? installment.paid_so_far : installment.paid_amount
 
@@ -1254,7 +1258,9 @@ function ConfirmRevertModal({ installment, busy, onCancel, onConfirm }) {
         </div>
 
         <p className="text-sm text-gray-600 mb-4">
-          {isPartial
+          {single
+            ? <>Vas a borrar el abono de <strong>{formatGs(single.amount)}</strong> del {single.payment_date} en la cuota {installment.number}. Los demás abonos de la cuota se mantienen.</>
+            : isPartial
             ? <>Vas a borrar el abono de <strong>{formatGs(amountToUndo)}</strong> registrado en la cuota {installment.number}. La cuota volverá a quedar sin ningún pago.</>
             : <>Vas a revertir el pago de la cuota {installment.number}. Volverá a quedar pendiente.</>}
           {' '}Esta acción no se puede deshacer.
@@ -1474,6 +1480,16 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale
                               {p.created_by_name ? ` · ${p.created_by_name}` : ''}
                             </span>
                             {!p.is_late_fee && (
+                            {!p.is_late_fee && (
+                              <button
+                                onClick={() => onRevert({ ...inst, paymentToRevert: p })}
+                                disabled={isBusy}
+                                className="text-gray-400 hover:text-red-600 shrink-0 disabled:opacity-50"
+                                title="Deshacer solo este abono"
+                              >
+                                <RotateCcw size={12} />
+                              </button>
+                            )}
                               <Link
                                 href={`/panel/cuotas/${inst.id}/comprobante?pago=${p.id}`}
                                 className="text-blue-600 hover:text-blue-800 shrink-0"

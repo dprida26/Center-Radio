@@ -399,8 +399,11 @@ export const installmentService = {
     })
     return data
   },
-  revertPayment: async (id) => {
-    const { data } = await api.post(`/installments/${id}/revert_payment/`)
+  revertPayment: async (id, paymentId = null) => {
+    const { data } = await api.post(
+      `/installments/${id}/revert_payment/`,
+      paymentId ? { payment_id: paymentId } : {}
+    )
     return data
   },
   getDueReport: async (daysAhead = 7) => {
