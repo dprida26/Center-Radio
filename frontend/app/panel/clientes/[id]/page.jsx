@@ -1445,7 +1445,8 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale
       )}
 
       {expanded && !isCash && sale.installments?.length > 0 && (
-        <table className="w-full text-sm mt-3">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm mt-3 min-w-[480px]">
           <thead>
             <tr className="text-left text-gray-500 border-b">
               <th className="pb-2 font-medium">#</th>
@@ -1480,7 +1481,6 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale
                               {p.created_by_name ? ` · ${p.created_by_name}` : ''}
                             </span>
                             {!p.is_late_fee && (
-                            {!p.is_late_fee && (
                               <button
                                 onClick={() => onRevert({ ...inst, paymentToRevert: p })}
                                 disabled={isBusy}
@@ -1490,6 +1490,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale
                                 <RotateCcw size={12} />
                               </button>
                             )}
+                            {!p.is_late_fee && (
                               <Link
                                 href={`/panel/cuotas/${inst.id}/comprobante?pago=${p.id}`}
                                 className="text-blue-600 hover:text-blue-800 shrink-0"
@@ -1584,6 +1585,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   )

@@ -580,6 +580,8 @@ class Installment(models.Model):
         aplicar porque ya no quedan cuotas pendientes del cliente.
         """
         from django.utils import timezone
+        if self.status == self.STATUS_PAID:
+            raise ValueError('Esta cuota ya está pagada.')
         payment_date = payment_date or timezone.now().date()
         amount = Decimal(str(amount))
         if amount <= 0:
@@ -667,8 +669,6 @@ class Installment(models.Model):
         self.paid_amount = None
         self.save()
 
-
-class InstallmentPayment(models.Model):
     def has_later_installment_payments(self):
         """True si alguna cuota posterior de la misma venta ya tiene pagos de
         capital: en ese caso no se puede revertir esta cuota sin dejar la
@@ -696,6 +696,8 @@ class InstallmentPayment(models.Model):
             self.paid_amount = paid if paid > 0 else None
         self.save()
 
+
+class InstallmentPayment(models.Model):
     installment = models.ForeignKey(Installment, on_delete=models.CASCADE, related_name='payments', verbose_name='Cuota')
     amount = models.DecimalField(max_digits=12, decimal_places=2, verbose_name='Monto Abonado')
     payment_date = models.DateField(verbose_name='Fecha de Pago')
