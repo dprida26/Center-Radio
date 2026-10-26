@@ -287,7 +287,7 @@ class SaleSerializer(serializers.ModelSerializer):
         model = Sale
         fields = [
             'id', 'customer', 'customer_name', 'customer_document', 'items', 'payment_type', 'installment_count',
-            'interest_rate', 'down_payment', 'payment_day', 'first_due_date', 'late_fee_rate',
+            'interest_rate', 'down_payment', 'payment_frequency', 'payment_day', 'first_due_date', 'late_fee_rate',
             'sale_date', 'notes', 'total_amount', 'remaining_amount', 'installments', 'created_at',
         ]
         read_only_fields = ['id', 'created_at']
@@ -307,6 +307,11 @@ class SaleSerializer(serializers.ModelSerializer):
         down_payment = attrs.get('down_payment') or Decimal('0')
         if down_payment < 0:
             raise serializers.ValidationError({'down_payment': 'La entrega inicial no puede ser negativa.'})
+        frequency = attrs.get('payment_frequency', getattr(self.instance, 'payment_frequency', None))
+        payment_type = attrs.get('payment_type', getattr(self.instance, 'payment_type', None))
+        first_due = attrs.get('first_due_date', getattr(self.instance, 'first_due_date', None))
+        if payment_type == 'INSTALLMENTS' and frequency == 'WEEKLY' and not first_due:
+            raise serializers.ValidationError({'first_due_date': 'En cuotas semanales debés elegir la fecha de la primera cuota.'})
         return attrs
 
     def validate_items(self, items):

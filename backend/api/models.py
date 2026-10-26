@@ -279,6 +279,15 @@ class Sale(models.Model):
     installment_count = models.PositiveIntegerField(default=1, verbose_name='Cantidad de Cuotas')
     interest_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name='Tasa de Interés (%)')
     down_payment = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Entrega Inicial')
+    FREQUENCY_MONTHLY = 'MONTHLY'
+    FREQUENCY_WEEKLY = 'WEEKLY'
+    FREQUENCY_CHOICES = [
+        (FREQUENCY_MONTHLY, 'Mensual'),
+        (FREQUENCY_WEEKLY, 'Semanal'),
+    ]
+    payment_frequency = models.CharField(
+        max_length=10, choices=FREQUENCY_CHOICES, default=FREQUENCY_MONTHLY, verbose_name='Frecuencia de Cuotas',
+    )
     payment_day = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name='Día de Pago Mensual')
     first_due_date = models.DateField(
         null=True, blank=True, verbose_name='Fecha de Vencimiento de la Primera Cuota',
@@ -331,6 +340,7 @@ class Sale(models.Model):
 
     def generate_installments(self, custom_installment_amount=None):
         from dateutil.relativedelta import relativedelta
+        from datetime import timedelta
         import calendar
 
         self.installments.all().delete()
@@ -359,7 +369,9 @@ class Sale(models.Model):
             if i == self.installment_count:
                 amount = base_amount + remainder
 
-            if self.first_due_date:
+            if self.payment_frequency == self.FREQUENCY_WEEKLY and self.first_due_date:
+                due_date = self.first_due_date + timedelta(weeks=i - 1)
+            elif self.first_due_date:
                 due_date = self.first_due_date + relativedelta(months=i - 1)
             else:
                 due_date = self.sale_date + relativedelta(months=i)

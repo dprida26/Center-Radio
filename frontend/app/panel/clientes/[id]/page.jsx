@@ -840,6 +840,8 @@ function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
   const [installmentCount, setInstallmentCount] = useState(sale.installment_count || 1)
   const [interestRate, setInterestRate] = useState(sale.interest_rate || 0)
   const [downPayment, setDownPayment] = useState(Math.round(parseFloat(sale.down_payment) || 0))
+  // La frecuencia se lee de la venta: así el modal ya abre en Mensual o Semanal según corresponda.
+  const [paymentFrequency, setPaymentFrequency] = useState(sale.payment_frequency || 'MONTHLY')
   const [paymentDay, setPaymentDay] = useState(sale.payment_day || '')
   const [firstDueDate, setFirstDueDate] = useState(sale.first_due_date || '')
   const [lateFeeRate, setLateFeeRate] = useState(sale.late_fee_rate || 0)
@@ -865,8 +867,14 @@ function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
   const total = paymentType === 'INSTALLMENTS' ? subtotal * (1 + (parseFloat(interestRate) || 0) / 100) : subtotal
   const downPaymentExceedsTotal = paymentType === 'INSTALLMENTS' && (parseFloat(downPayment) || 0) > total
 
+  const isWeekly = paymentType === 'INSTALLMENTS' && paymentFrequency === 'WEEKLY'
+  const weekdayName = firstDueDate
+    ? new Date(`${firstDueDate}T00:00:00`).toLocaleDateString('es-PY', { weekday: 'long' })
+    : null
+
   const canSubmit = reason.trim().length > 0 && items.length > 0 &&
-    items.every((it) => it.quantity > 0 && it.unit_price >= 0) && !downPaymentExceedsTotal
+    items.every((it) => it.quantity > 0 && it.unit_price >= 0) && !downPaymentExceedsTotal &&
+    !(!hasPayments && isWeekly && !firstDueDate)
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -886,7 +894,8 @@ function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
         installment_count: paymentType === 'INSTALLMENTS' ? installmentCount : 1,
         interest_rate: paymentType === 'INSTALLMENTS' ? interestRate : 0,
         down_payment: paymentType === 'INSTALLMENTS' ? (parseFloat(downPayment) || 0) : 0,
-        payment_day: paymentType === 'INSTALLMENTS' && paymentDay ? Number(paymentDay) : null,
+        payment_frequency: paymentType === 'INSTALLMENTS' ? paymentFrequency : 'MONTHLY',
+        payment_day: paymentType === 'INSTALLMENTS' && paymentFrequency === 'MONTHLY' && paymentDay ? Number(paymentDay) : null,
         first_due_date: paymentType === 'INSTALLMENTS' && firstDueDate ? firstDueDate : null,
         late_fee_rate: paymentType === 'INSTALLMENTS' ? (parseFloat(lateFeeRate) || 0) : 0,
       })
@@ -996,6 +1005,23 @@ function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
               </div>
 
               {paymentType === 'INSTALLMENTS' && (
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  {[['MONTHLY', 'Mensuales'], ['WEEKLY', 'Semanales']].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPaymentFrequency(value)}
+                      className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                        paymentFrequency === value ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {paymentType === 'INSTALLMENTS' && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Cantidad de cuotas</label>
@@ -1031,6 +1057,7 @@ function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
                       }`}
                     />
                   </div>
+                  {!isWeekly && (
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Día de pago mensual</label>
                     <input
@@ -1046,14 +1073,24 @@ function EditSaleModal({ sale, customer, busy, error, onCancel, onSave }) {
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
+                  )}
                   <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">Vencimiento 1ª cuota</label>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      {isWeekly ? 'Día de pago semanal (calendario) *' : 'Vencimiento 1ª cuota'}
+                    </label>
                     <input
                       type="date"
                       value={firstDueDate}
                       onChange={(e) => setFirstDueDate(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    {isWeekly && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        {weekdayName
+                          ? <>Vencen cada <strong className="capitalize">{weekdayName}</strong>.</>
+                          : 'Elegí la fecha de la 1ª cuota.'}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">Interés por mora (% mensual)</label>
@@ -1380,7 +1417,7 @@ function SaleCard({ sale, onRequestMarkPaid, onRevert, onEditLateFee, onEditSale
           <div>
             <p className="font-semibold text-gray-900">{itemsLabel}</p>
             <p className="text-xs text-gray-500">
-              {sale.sale_date} · {isCash ? 'Contado' : `${sale.installment_count} cuotas`}
+              {sale.sale_date} · {isCash ? 'Contado' : `${sale.installment_count} cuotas ${sale.payment_frequency === 'WEEKLY' ? 'semanales' : 'mensuales'}`}
             </p>
             {items.length > 1 && (
               <ul className="text-xs text-gray-500 mt-1 space-y-0.5">

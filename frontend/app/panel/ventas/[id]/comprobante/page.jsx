@@ -281,7 +281,7 @@ function ComprobanteEntregaInicial({ info, sale, receiptRef, handleShare, sharin
           <div>
             <p className="text-xs font-semibold text-gray-400 uppercase mb-1">Producto</p>
             <p className="font-semibold text-gray-900">{itemsLabel}</p>
-            <p className="text-gray-500">{sale.installment_count} cuotas</p>
+            <p className="text-gray-500">{sale.installment_count} cuotas {sale.payment_frequency === 'WEEKLY' ? 'semanales' : 'mensuales'}</p>
           </div>
         </div>
 

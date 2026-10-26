@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Check, Loader2, Trash2, Plus, X } from 'lucide-react'
 import { customerService, productService, saleService } from '@/services/api'
@@ -24,6 +24,7 @@ export default function NuevaVentaPage() {
   const [installmentCount, setInstallmentCount] = useState(3)
   const [interestRate, setInterestRate] = useState(0)
   const [downPayment, setDownPayment] = useState(0)
+  const [paymentFrequency, setPaymentFrequency] = useState('MONTHLY')
   const [paymentDay, setPaymentDay] = useState('')
   const [firstDueDate, setFirstDueDate] = useState('')
   const [lateFeeRate, setLateFeeRate] = useState(0)
@@ -32,6 +33,9 @@ export default function NuevaVentaPage() {
   const [customInstallmentAmount, setCustomInstallmentAmount] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
+  // Candado síncrono: el state tarda un render en reflejarse y un doble clic
+  // rápido podría enviar la venta dos veces.
+  const submitLock = useRef(false)
   const [error, setError] = useState(null)
   const [showConfirm, setShowConfirm] = useState(false)
 
@@ -63,6 +67,11 @@ export default function NuevaVentaPage() {
     setItems((prev) => prev.filter((it) => it.product.id !== productId))
   }
 
+  const isWeekly = paymentType === 'INSTALLMENTS' && paymentFrequency === 'WEEKLY'
+  const weekdayName = firstDueDate
+    ? new Date(`${firstDueDate}T00:00:00`).toLocaleDateString('es-PY', { weekday: 'long' })
+    : null
+
   const customAmountInvalid =
     paymentType === 'INSTALLMENTS' && useCustomInstallmentAmount && !(parseFloat(customInstallmentAmount) > 0)
 
@@ -71,9 +80,12 @@ export default function NuevaVentaPage() {
     items.length > 0 &&
     items.every((it) => it.quantity > 0 && it.quantity <= it.product.stock && it.unit_price >= 0) &&
     !downPaymentExceedsTotal &&
-    !customAmountInvalid
+    !customAmountInvalid &&
+    !(isWeekly && !firstDueDate)
 
   const handleSubmit = async () => {
+    if (submitLock.current) return true
+    submitLock.current = true
     setSubmitting(true)
     setError(null)
     try {
@@ -83,7 +95,8 @@ export default function NuevaVentaPage() {
         installment_count: paymentType === 'INSTALLMENTS' ? installmentCount : 1,
         interest_rate: paymentType === 'INSTALLMENTS' ? interestRate : 0,
         down_payment: paymentType === 'INSTALLMENTS' ? (parseFloat(downPayment) || 0) : 0,
-        payment_day: paymentType === 'INSTALLMENTS' && paymentDay ? Number(paymentDay) : null,
+        payment_frequency: paymentType === 'INSTALLMENTS' ? paymentFrequency : 'MONTHLY',
+        payment_day: paymentType === 'INSTALLMENTS' && paymentFrequency === 'MONTHLY' && paymentDay ? Number(paymentDay) : null,
         first_due_date: paymentType === 'INSTALLMENTS' && firstDueDate ? firstDueDate : null,
         late_fee_rate: paymentType === 'INSTALLMENTS' ? (parseFloat(lateFeeRate) || 0) : 0,
         sale_date: saleDate,
@@ -98,7 +111,10 @@ export default function NuevaVentaPage() {
         payload.custom_installment_amount = parseFloat(customInstallmentAmount)
       }
       await saleService.create(payload)
+      // Se mantiene submitting=true hasta que termine la navegación, para que
+      // el botón siga deshabilitado y con el spinner mientras carga la ficha.
       router.push(`/panel/clientes/${customer.id}`)
+      return true
     } catch (err) {
       const detail = err?.response?.data
       setError(
@@ -106,8 +122,9 @@ export default function NuevaVentaPage() {
           ? Object.values(detail).flat().join(' ')
           : 'No se pudo registrar la venta.'
       )
-    } finally {
+      submitLock.current = false
       setSubmitting(false)
+      return false
     }
   }
 
@@ -221,6 +238,26 @@ export default function NuevaVentaPage() {
           </div>
 
           {paymentType === 'INSTALLMENTS' && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Frecuencia de las cuotas</label>
+              <div className="grid grid-cols-2 gap-3 max-w-sm">
+                {[['MONTHLY', 'Mensuales'], ['WEEKLY', 'Semanales']].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPaymentFrequency(value)}
+                    className={`px-3 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${
+                      paymentFrequency === value ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {paymentType === 'INSTALLMENTS' && (
             <div className="grid grid-cols-2 gap-4 mt-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Cantidad de cuotas</label>
@@ -259,6 +296,7 @@ export default function NuevaVentaPage() {
                   <p className="text-xs text-red-600 mt-1">La entrega inicial no puede superar el total de la venta.</p>
                 )}
               </div>
+              {!isWeekly && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Día de pago mensual</label>
                 <input
@@ -276,15 +314,27 @@ export default function NuevaVentaPage() {
                 />
                 <p className="text-xs text-gray-400 mt-1">Opcional. Si no se indica, se usa la fecha de venta.</p>
               </div>
+              )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Vencimiento de la 1ª cuota</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  {isWeekly ? 'Día de pago semanal (elegí en el calendario) *' : 'Vencimiento de la 1ª cuota'}
+                </label>
                 <input
                   type="date"
                   value={firstDueDate}
+                  min={saleDate}
                   onChange={(e) => setFirstDueDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-xs text-gray-400 mt-1">Opcional. Elegí la fecha exacta (por ej. del mes corriente) si no querés esperar un mes desde la venta.</p>
+                {isWeekly ? (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {weekdayName
+                      ? <>Las cuotas vencerán cada <strong className="capitalize">{weekdayName}</strong>, empezando en esta fecha.</>
+                      : 'Elegí la fecha de la 1ª cuota: esa será la fecha de la primera cuota y el día de la semana en que vencerán todas.'}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">Opcional. Elegí la fecha exacta (por ej. del mes corriente) si no querés esperar un mes desde la venta.</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Interés por mora (% mensual)</label>
@@ -360,7 +410,7 @@ export default function NuevaVentaPage() {
           )}
           {paymentType === 'INSTALLMENTS' && perInstallment && (
             <div className="flex justify-between text-sm text-gray-600">
-              <span>{installmentCount} cuotas de</span>
+              <span>{installmentCount} cuotas {isWeekly ? 'semanales' : 'mensuales'} de</span>
               <span>{formatGs(perInstallment)}</span>
             </div>
           )}
@@ -396,6 +446,7 @@ export default function NuevaVentaPage() {
 
       {showConfirm && (
         <ConfirmSaleModal
+          isWeekly={isWeekly}
           customer={customer}
           paymentType={paymentType}
           installmentCount={installmentCount}
@@ -405,8 +456,8 @@ export default function NuevaVentaPage() {
           submitting={submitting}
           onCancel={() => setShowConfirm(false)}
           onConfirm={async () => {
-            await handleSubmit()
-            setShowConfirm(false)
+            const ok = await handleSubmit()
+            if (!ok) setShowConfirm(false)
           }}
         />
       )}
@@ -414,14 +465,14 @@ export default function NuevaVentaPage() {
   )
 }
 
-function ConfirmSaleModal({ customer, paymentType, installmentCount, perInstallment, downPayment, total, submitting, onCancel, onConfirm }) {
+function ConfirmSaleModal({ isWeekly, customer, paymentType, installmentCount, perInstallment, downPayment, total, submitting, onCancel, onConfirm }) {
   const isCash = paymentType === 'CASH'
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-md w-full p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-lg text-gray-900">Confirmar venta</h3>
-          <button onClick={onCancel} className="text-gray-400 hover:text-gray-600">
+          <button onClick={onCancel} disabled={submitting} className="text-gray-400 hover:text-gray-600 disabled:opacity-40">
             <X size={20} />
           </button>
         </div>
@@ -441,7 +492,7 @@ function ConfirmSaleModal({ customer, paymentType, installmentCount, perInstallm
             <>
               <div className="flex justify-between">
                 <span className="text-gray-500">Cantidad de cuotas</span>
-                <span className="font-medium text-gray-900">{installmentCount}</span>
+                <span className="font-medium text-gray-900">{installmentCount} {isWeekly ? '(semanales)' : '(mensuales)'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Monto por cuota</span>
@@ -481,7 +532,7 @@ function ConfirmSaleModal({ customer, paymentType, installmentCount, perInstallm
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
           >
             {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-            {submitting ? 'Guardando...' : 'Confirmar'}
+            {submitting ? 'Guardando venta...' : 'Confirmar'}
           </button>
         </div>
       </div>

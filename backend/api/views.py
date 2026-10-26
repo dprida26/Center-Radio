@@ -617,7 +617,7 @@ class SaleViewSet(AuditMixin, viewsets.ModelViewSet):
     # cualquier abono ya hecho sobre las cuotas viejas).
     RESTRICTED_EDITABLE_FIELDS = {
         'items', 'payment_type', 'installment_count', 'interest_rate',
-        'down_payment', 'payment_day', 'first_due_date', 'late_fee_rate',
+        'down_payment', 'payment_frequency', 'payment_day', 'first_due_date', 'late_fee_rate',
     }
     EDITABLE_FIELDS = BASIC_EDITABLE_FIELDS | RESTRICTED_EDITABLE_FIELDS
 
