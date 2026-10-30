@@ -1,0 +1,58 @@
+name: Backup diario de la base de datos
+
+# Dump de produccion (Render) -> Google Drive (rclone), sin cifrar.
+# Secrets requeridos en GitHub (Settings > Secrets and variables > Actions):
+#   DATABASE_URL         URL externa de la DB de Render
+#   RCLONE_CONFIG_B64    contenido de rclone.conf en base64 (remoto "gdrive")
+
+on:
+  schedule:
+    - cron: "30 1 * * *" # 01:30 UTC = 22:30 Paraguay (UTC-3 todo el año)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DRIVE_FOLDER: gdrive:Backups-Center-Radio
+  RETENTION_DAYS: 30
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Instalar pg_dump 16 y rclone
+        run: |
+          sudo install -d /usr/share/keyrings
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16 rclone
+
+      - name: Generar dump
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PGSSLMODE: require
+        run: |
+          STAMP=$(date -u +%Y-%m-%d_%H%M%S)
+          echo "OUT=produccion_${STAMP}.dump" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/16/bin/pg_dump --format=custom --no-owner --no-privileges \
+            "$DATABASE_URL" > "produccion_${STAMP}.dump"
+          # Un dump vacio o diminuto significa que algo fallo: abortar antes de subir.
+          SIZE=$(stat -c%s "produccion_${STAMP}.dump")
+          echo "Tamano del dump: ${SIZE} bytes"
+          [ "$SIZE" -gt 50000 ] || { echo "Dump sospechosamente chico"; exit 1; }
+          /usr/lib/postgresql/16/bin/pg_restore --list "produccion_${STAMP}.dump" > /dev/null
+
+      - name: Subir a Google Drive y aplicar retencion
+        env:
+          RCLONE_CONFIG_B64: ${{ secrets.RCLONE_CONFIG_B64 }}
+        run: |
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONFIG_B64" | base64 -d > ~/.config/rclone/rclone.conf
+          rclone copy "$OUT" "$DRIVE_FOLDER" --verbose
+          rclone delete "$DRIVE_FOLDER" --min-age "${RETENTION_DAYS}d" --verbose
+          rclone ls "$DRIVE_FOLDER"
