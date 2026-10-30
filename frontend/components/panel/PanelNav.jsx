@@ -47,7 +47,7 @@ export default function PanelNav({ open, onClose }) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-gray-900 text-white min-h-screen flex flex-col transition-transform duration-200 lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-gray-900 text-white min-h-screen flex flex-col transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:min-h-0 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -68,7 +68,7 @@ export default function PanelNav({ open, onClose }) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+        <nav className="panel-nav-scroll flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {links.map((link) => {
             const Icon = link.icon
             const active = isActive(link)
